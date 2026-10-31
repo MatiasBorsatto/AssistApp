@@ -12,6 +12,8 @@ export type DemoBus = {
   push: (n: { para: Role[]; title: string; msg: string; tone?: DemoNotif['tone'] }) => void
   addJustification: (j: Omit<Justification, 'id' | 'status'>) => void
   notifs: DemoNotif[]
+  /** Todas las justificaciones (cada perfil usa las que le corresponden) */
+  justificaciones: Justification[]
   /** Reglas de fichaje y horarios del personal (se editan en Configuración) */
   config: ConfigDemo
   setConfig: (c: ConfigDemo) => void

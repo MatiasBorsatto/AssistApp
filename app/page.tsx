@@ -4,18 +4,21 @@ import { useEffect, useState } from 'react'
 import { Database } from 'lucide-react'
 import { Shell } from '@/components/Shell'
 import { LiveApp } from '@/components/live/LiveApp'
-import {
-  AdminAttendance, AdminPanel, AlumnoNotifications, EarlyNotice, HistoryView, JustificationsView,
-  PreceptorAttendance, ReportsView, UsersView,
-} from '@/components/views'
+import { AdminAttendance, AlumnoNotifications, HistoryView, PreceptorAttendance, UsersView } from '@/components/views'
+import { JustificationsView } from '@/components/justificaciones'
+import { EarlyNotice } from '@/components/aviso'
+import { JustificarView } from '@/components/alumno'
+import { ReportsView } from '@/components/reportes'
+import { CalendarioView } from '@/components/calendario'
+import { InicioView } from '@/components/inicio'
+import { tipoDia, type Evento } from '@/lib/calendario'
 import { FicharView } from '@/components/fichar'
 import { ConfigDemoView } from '@/components/config-demo'
-import { CONFIG_INICIAL, type ConfigDemo, type Fichaje } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, franjasDelDia, type ConfigDemo, type Fichaje } from '@/lib/fichaje'
 import { initialJustifications, initialUsers, type AppUser, type Justification } from '@/lib/data'
 import { roleOrder, roles, type Role, type ViewId } from '@/lib/roles'
 import { getSupabase, supabaseConfigurado } from '@/lib/supabase'
 import { DemoBusCtx, type DemoBus, type DemoNotif } from '@/lib/demo-bus'
-import { alumnoNotifications } from '@/lib/data'
 
 type Modo = 'inicio' | 'demo' | 'real'
 
@@ -52,9 +55,9 @@ function Inicio({ onReal, onDemo }: { onReal: () => void; onDemo: () => void }) 
 /** Prototipo por casos de uso (datos de ejemplo, sin conexión a la base). */
 function Demo({ onExit }: { onExit: () => void }) {
   const [role, setRole] = useState<Role | null>(null)
-  const [view, setView] = useState<ViewId>('panel')
+  const [view, setView] = useState<ViewId>('inicio')
   const [toast, setToast] = useState<string | null>(null)
-  const [justifications, setJustifications] = useState<Justification[]>(initialJustifications)
+  const [justifications, setJustifications] = useState<Justification[]>(() => initialJustifications())
   const [users, setUsers] = useState<AppUser[]>(initialUsers)
   const [notifs, setNotifs] = useState<DemoNotif[]>([])
   const [config, setConfig] = useState<ConfigDemo>(CONFIG_INICIAL)
@@ -62,15 +65,15 @@ function Demo({ onExit }: { onExit: () => void }) {
 
   const notify = (message?: string) => {
     setToast(typeof message === 'string' ? message : 'Los cambios se guardaron correctamente.')
-    setTimeout(() => setToast(null), 3000)
+    setTimeout(() => setToast(null), 3500)
   }
   const bus: DemoBus = {
-    notifs, config, setConfig, fichajes,
+    notifs, config, setConfig, fichajes, justificaciones: justifications,
     registrarFichaje: f => setFichajes(prev => ({ ...prev, [f.personaId]: f })),
     push: n => setNotifs(p => [{ id: Date.now() + p.length, para: n.para, title: n.title, msg: n.msg, tone: n.tone || 'blue', time: 'Ahora', read: [] }, ...p]),
     addJustification: j => setJustifications(p => [{ ...j, id: Math.max(0, ...p.map(x => x.id)) + 1, status: 'Pendiente' }, ...p]),
   }
-  const login = (r: Role) => { setRole(r); setView(roles[r].nav[0].id) }
+  const login = (r: Role) => { setRole(r); setView('inicio') }
 
   if (!role) return <DemoLogin onLogin={login} onExit={onExit} />
 
@@ -78,34 +81,55 @@ function Demo({ onExit }: { onExit: () => void }) {
   const go = (id: string) => setView(id as ViewId)
   const current = cfg.nav.find(n => n.id === view) ?? cfg.nav[0]
 
+  const misNotifs = notifs.filter(n => n.para.includes(role)).map(n => ({ id: n.id, title: n.title, msg: n.msg, tone: n.tone, time: n.time, read: n.read.includes(role) }))
+  const sinLeer = misNotifs.filter(n => !n.read).length
+
+  // Globitos con pendientes en el menú
+  const pendPersonal = justifications.filter(j => j.ambito === 'personal' && j.status === 'Pendiente').length
+  const pendAlumnos = justifications.filter(j => j.ambito === 'alumno' && j.status === 'Pendiente').length
+  const badges: Record<string, number> = role === 'Administrador' ? { justificaciones: pendPersonal, 'gestion-asistencia': Object.values(fichajes).filter(f => f.pendiente).length }
+    : role === 'Preceptor' ? { justificaciones: pendAlumnos } : role === 'Alumno' ? { notificaciones: sinLeer } : {}
+
+  // Calendario: ausencias y licencias que le corresponden a cada perfil
+  const mias = (j: Justification) => (role === 'Administrador' ? j.ambito === 'personal' : role === 'Preceptor' ? j.ambito === 'alumno' : role === 'Profesor' ? j.name === 'María González' : j.name === 'Tomás Ríos')
+  const eventos: Evento[] = justifications.filter(j => mias(j) && j.status !== 'Rechazado').map(j => ({
+    desde: j.desde, hasta: j.hasta, titulo: role === 'Administrador' || role === 'Preceptor' ? j.name : j.reason, tone: j.status === 'Aprobado' ? 'success' : 'warning',
+    detalle: `${role === 'Administrador' || role === 'Preceptor' ? j.reason + ' · ' : ''}${j.status === 'Pendiente' ? 'Para revisar' : 'Aprobada'}`,
+  }))
+  const maria = config.personal.find(x => x.id === 'maria')!
+  const clasesDelDia = (iso: string) => { const w = new Date(iso + 'T12:00:00').getDay(); if (w < 1 || w > 5 || tipoDia(config, iso).tipo !== 'clase') return []; return franjasDelDia(config, maria, DIAS[w - 1].id).map(c => `${c.entrada} a ${c.salida} · ${c.materia}`) }
+
   const body = () => {
     switch (current.id) {
-      case 'panel': return <AdminPanel justifications={justifications} onGo={go} />
+      case 'inicio': return <InicioView role={role} go={id => go(id)} sinLeer={sinLeer} />
       case 'gestion-asistencia': return role === 'Preceptor' ? <PreceptorAttendance onNotify={notify} /> : <AdminAttendance onNotify={notify} />
       case 'registrar-qr':
       case 'fichar': return <FicharView role={role} onNotify={notify} />
       case 'configuracion': return <ConfigDemoView onNotify={notify} />
       case 'aviso': return <EarlyNotice onNotify={notify} />
+      case 'justificar': return <JustificarView onNotify={notify} />
       case 'historial': return <HistoryView role={role} onNotify={notify} />
       case 'justificaciones': return <JustificationsView role={role} items={justifications} onNotify={notify}
         onAdd={j => setJustifications(p => [{ ...j, id: Math.max(0, ...p.map(x => x.id)) + 1, status: 'Pendiente' }, ...p])}
-        onResolve={(id, status) => setJustifications(p => p.map(j => j.id === id ? { ...j, status } : j))}
+        onResolve={(id, status, respuesta) => setJustifications(p => p.map(j => j.id === id ? { ...j, status, respuesta: respuesta ?? j.respuesta } : j))}
         onEdit={(id, patch) => setJustifications(p => p.map(j => j.id === id ? { ...j, ...patch, initials: patch.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() } : j))}
         onDelete={id => setJustifications(p => p.filter(j => j.id !== id))} />
       case 'usuarios': return <UsersView users={users} onAdd={u => setUsers(p => [u, ...p])} onUpdate={(id, patch) => setUsers(p => p.map(u => u.id === id ? { ...u, ...patch } : u))} onDelete={id => setUsers(p => p.filter(u => u.id !== id))} onNotify={notify} />
       case 'reportes': return <ReportsView role={role} onNotify={notify} />
+      case 'calendario': return <CalendarioView config={config} eventos={eventos} extraDia={role === 'Profesor' ? clasesDelDia : undefined}
+        titulo="Calendario del ciclo lectivo" descripcion={role === 'Administrador' ? 'Días de clases, feriados y las licencias del personal. Los feriados se cargan en Configuración.' : role === 'Preceptor' ? 'Días de clases, feriados y las justificaciones de tus alumnos.' : role === 'Profesor' ? 'Días de clases, feriados, tus clases y tus avisos de ausencia.' : 'Días de clases, feriados y tus faltas justificadas.'} />
       case 'notificaciones': return <AlumnoNotifications extra={notifs.filter(n => n.para.includes('Alumno')).map(n => ({ title: n.title, msg: n.msg, time: n.time, tone: n.tone }))} />
     }
   }
 
-  const misNotifs = notifs.filter(n => n.para.includes(role)).map(n => ({ id: n.id, title: n.title, msg: n.msg, tone: n.tone, time: n.time, read: n.read.includes(role) }))
   return (
     <DemoBusCtx.Provider value={bus}>
-    <Shell rolLabel={role} userName={cfg.user} initials={cfg.initials} nav={cfg.nav} currentId={current.id} onGo={go}
-      notifs={misNotifs} onReadAll={() => setNotifs(p => p.map(n => n.para.includes(role) && !n.read.includes(role) ? { ...n, read: [...n.read, role] } : n))} toast={toast} onDismissToast={() => setToast(null)} onLogout={() => setRole(null)}
-      banner={<div className="demo-bar" role="status">Modo demostración · datos de ejemplo</div>}>
-      {body()}
-    </Shell>
+      <Shell rolLabel={role} userName={cfg.user} initials={cfg.initials} nav={cfg.nav} currentId={current.id} onGo={go} badges={badges}
+        notifs={misNotifs} onReadAll={() => setNotifs(p => p.map(n => n.para.includes(role) && !n.read.includes(role) ? { ...n, read: [...n.read, role] } : n))}
+        toast={toast} onDismissToast={() => setToast(null)} onLogout={() => setRole(null)}
+        banner={<div className="demo-bar" role="status">Modo demostración · datos de ejemplo</div>}>
+        {body()}
+      </Shell>
     </DemoBusCtx.Provider>
   )
 }

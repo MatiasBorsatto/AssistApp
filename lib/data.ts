@@ -4,11 +4,23 @@ export type Justification = {
   id: number
   name: string
   initials: string
-  date: string
+  /** Primer día de la ausencia o licencia (AAAA-MM-DD) */
+  desde: string
+  /** Último día (AAAA-MM-DD). Si es un solo día, es igual a "desde" */
+  hasta: string
   reason: string
+  /** Quién la inició: Alumno, Aviso temprano, Preceptoría, Administración */
   origin: string
+  /** personal: docentes y no docentes (los revisa Administración) · alumno: los revisa el Preceptor */
+  ambito: 'personal' | 'alumno'
+  curso?: string
   status: 'Pendiente' | 'Aprobado' | 'Rechazado'
   attachment?: string
+  /** Foto o imagen del certificado (data URL) */
+  imagen?: string
+  comentario?: string
+  /** Motivo del rechazo, que se le informa a quien la envió */
+  respuesta?: string
 }
 
 export type AppUser = {
@@ -23,12 +35,19 @@ export type AppUser = {
 
 export type HistoryRecord = { date: string; entry: string; exit: string; status: string; tone: Tone; note: string }
 
-export const initialJustifications: Justification[] = [
-  { id: 1, name: 'Ana Martínez', initials: 'AM', date: '22 oct.', reason: 'Licencia médica', origin: 'Aviso temprano', status: 'Pendiente', attachment: 'certificado-medico.pdf' },
-  { id: 2, name: 'Carlos Rodríguez', initials: 'CR', date: '21 oct.', reason: 'Trámite personal', origin: 'Preceptoría', status: 'Pendiente' },
-  { id: 3, name: 'Laura Gómez', initials: 'LG', date: '21 oct.', reason: 'Enfermedad', origin: 'Aviso temprano', status: 'Pendiente', attachment: 'receta.jpg' },
-  { id: 4, name: 'Jorge Fernández', initials: 'JF', date: '18 oct.', reason: 'Comisión de servicio', origin: 'Administración', status: 'Aprobado' },
-  { id: 5, name: 'Mariano Paz', initials: 'MP', date: '10 oct.', reason: 'Motivo no acreditado', origin: 'Preceptoría', status: 'Rechazado' },
+const hoyIso = () => new Date().toISOString().slice(0, 10)
+const dia = (n: number) => { const d = new Date(hoyIso() + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+
+/** Datos de ejemplo, siempre cercanos a la fecha de hoy para que se vean en el calendario. */
+export const initialJustifications = (): Justification[] => [
+  { id: 1, name: 'Ana Martínez', initials: 'AM', desde: dia(-8), hasta: dia(-6), reason: 'Licencia médica', origin: 'Aviso temprano', ambito: 'personal', status: 'Pendiente', attachment: 'certificado-medico.pdf' },
+  { id: 2, name: 'Carlos Rodríguez', initials: 'CR', desde: dia(-9), hasta: dia(-9), reason: 'Trámite personal', origin: 'Administración', ambito: 'personal', status: 'Pendiente' },
+  { id: 3, name: 'Laura Gómez', initials: 'LG', desde: dia(-9), hasta: dia(-8), reason: 'Enfermedad', origin: 'Aviso temprano', ambito: 'personal', status: 'Pendiente', attachment: 'receta.jpg' },
+  { id: 4, name: 'Jorge Fernández', initials: 'JF', desde: dia(-12), hasta: dia(-12), reason: 'Comisión de servicio', origin: 'Administración', ambito: 'personal', status: 'Aprobado' },
+  { id: 5, name: 'Mariano Paz', initials: 'MP', desde: dia(-20), hasta: dia(-20), reason: 'Motivo no acreditado', origin: 'Administración', ambito: 'personal', status: 'Rechazado', respuesta: 'No se presentó documentación.' },
+  { id: 6, name: 'Tomás Ríos', initials: 'TR', desde: dia(-2), hasta: dia(-2), reason: 'Control médico', origin: 'Alumno', ambito: 'alumno', curso: '4° B', status: 'Pendiente', comentario: 'Tenía turno con el pediatra.' },
+  { id: 7, name: 'Julieta Sosa', initials: 'JS', desde: dia(-5), hasta: dia(-3), reason: 'Enfermedad (gripe)', origin: 'Alumno', ambito: 'alumno', curso: '4° B', status: 'Aprobado' },
+  { id: 8, name: 'Mateo Villalba', initials: 'MV', desde: dia(-10), hasta: dia(-10), reason: 'Trámite familiar', origin: 'Alumno', ambito: 'alumno', curso: '4° B', status: 'Rechazado', respuesta: 'Falta el comprobante del trámite.' },
 ]
 
 export const initialUsers: AppUser[] = [

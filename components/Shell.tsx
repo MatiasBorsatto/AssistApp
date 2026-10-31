@@ -1,24 +1,33 @@
 'use client'
 
-import { useState } from 'react'
-import { Bell, CheckCircle2, ChevronDown, ChevronRight, LogOut, Menu, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, CheckCircle2, ChevronRight, Lightbulb, LogOut, Menu, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Avatar, UseCaseTrace } from './shared'
 
-export type ShellNavItem = { id: string; label: string; icon: LucideIcon; useCase?: string; related?: string[] }
+export type ShellNavItem = { id: string; label: string; icon: LucideIcon; useCase?: string; related?: string[]; ayuda?: string }
 
 /** Estructura común (menú lateral, barra superior, aviso y confirmación de cierre de sesión) para el modo demo y el modo real. */
 export type ShellNotif = { id: number; title: string; msg: string; tone: 'success' | 'warning' | 'blue'; time: string; read: boolean }
 
-export function Shell({ rolLabel, userName, initials, schoolLabel = 'Escuela Modelo', nav, currentId, onGo, onBell, notifs, onReadAll, children, toast, onDismissToast, onLogout, banner }: {
+export function Shell({ rolLabel, userName, initials, schoolLabel = 'Escuela Modelo', nav, currentId, onGo, onBell, notifs, onReadAll, badges, children, toast, onDismissToast, onLogout, banner }: {
   rolLabel: string; userName: string; initials: string; schoolLabel?: string
   nav: ShellNavItem[]; currentId: string; onGo: (id: string) => void; onBell?: () => void
   notifs?: ShellNotif[]; onReadAll?: () => void
+  /** Cantidad de pendientes por sección, para mostrar un globito en el menú */
+  badges?: Record<string, number>
   children: React.ReactNode; toast: string | null; onDismissToast: () => void; onLogout: () => void; banner?: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  const [mostrarCasos, setMostrarCasos] = useState(true)
+  const [ayudaCerrada, setAyudaCerrada] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    try { setMostrarCasos(localStorage.getItem('asistapp-casos') !== 'off'); setAyudaCerrada(JSON.parse(localStorage.getItem('asistapp-ayuda') || '{}')) } catch { /* sin almacenamiento */ }
+  }, [])
+  const cambiarCasos = (v: boolean) => { setMostrarCasos(v); try { localStorage.setItem('asistapp-casos', v ? 'on' : 'off') } catch { /* sin almacenamiento */ } }
+  const cerrarAyuda = (id: string) => { const n = { ...ayudaCerrada, [id]: true }; setAyudaCerrada(n); try { localStorage.setItem('asistapp-ayuda', JSON.stringify(n)) } catch { /* sin almacenamiento */ } }
   const unread = notifs ? notifs.filter(n => !n.read).length : 0
   const current = nav.find(n => n.id === currentId) ?? nav[0]
   const go = (id: string) => { onGo(id); setSidebarOpen(false) }
@@ -27,10 +36,11 @@ export function Shell({ rolLabel, userName, initials, schoolLabel = 'Escuela Mod
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand"><img src="/logo.svg" alt="" className="brand-logo" width={34} height={34} /><span>ASIST<span>APP</span></span></div>
-        <div className="workspace"><div className="school-mark">E</div><div><strong>{schoolLabel}</strong><small>Módulo {rolLabel}</small></div><ChevronDown size={15} /></div>
-        <div className="nav-label">MENÚ · {rolLabel.toUpperCase()}</div>
-        <nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => go(id)} className={current.id === id ? 'active' : ''}><Icon size={18} /><span>{label}</span></button>)}</nav>
+        <div className="workspace"><div className="school-mark">E</div><div><strong>{schoolLabel}</strong><small>Perfil: {rolLabel}</small></div></div>
+        <div className="nav-label">¿QUÉ NECESITÁS HACER?</div>
+        <nav aria-label="Secciones">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => go(id)} className={current.id === id ? 'active' : ''} aria-current={current.id === id ? 'page' : undefined}><Icon size={19} /><span>{label}</span>{!!badges?.[id] && <em aria-label={`${badges[id]} pendientes`}>{badges[id]}</em>}</button>)}</nav>
         <div className="sidebar-spacer" />
+        <label className="casos-toggle"><input type="checkbox" checked={mostrarCasos} onChange={e => cambiarCasos(e.target.checked)} /><span>Mostrar casos de uso <small>(para la presentación)</small></span></label>
         <button onClick={() => setConfirmLogout(true)}><LogOut size={18} /><span>Cerrar sesión</span></button>
         <div className="sidebar-user"><Avatar initials={initials} small blue /><div><strong>{userName}</strong><small>{rolLabel}</small></div></div>
       </aside>
@@ -49,7 +59,8 @@ export function Shell({ rolLabel, userName, initials, schoolLabel = 'Escuela Mod
         </header>
         <div className="page-content">
           {banner}
-          {current.useCase && <UseCaseTrace useCase={current.useCase} related={current.related} />}
+          {mostrarCasos && current.useCase && <UseCaseTrace useCase={current.useCase} related={current.related} />}
+          {current.ayuda && !ayudaCerrada[`${rolLabel}-${current.id}`] && current.id !== 'inicio' && <div className="ayuda-vista" role="note"><Lightbulb size={17} /><span>{current.ayuda}</span><button className="icon-button" aria-label="Ocultar esta ayuda" onClick={() => cerrarAyuda(`${rolLabel}-${current.id}`)}><X size={14} /></button></div>}
           {children}
         </div>
       </main>

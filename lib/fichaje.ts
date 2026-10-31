@@ -45,7 +45,16 @@ export type ReglasFichaje = {
 }
 /** Preceptores y administrativos tienen un horario fijo, que se define por ROL. Los docentes tienen sus clases (por persona). */
 export type RolConHorario = 'preceptor' | 'administrativo'
-export type ConfigDemo = { reglas: ReglasFichaje; horarios: Record<RolConHorario, HorarioPersona>; personal: Persona[] }
+export type Feriado = { fecha: string; nombre: string }
+export type ConfigDemo = {
+  reglas: ReglasFichaje
+  horarios: Record<RolConHorario, HorarioPersona>
+  personal: Persona[]
+  /** Ciclo lectivo: primer y último día de clases (AAAA-MM-DD) */
+  ciclo: { inicio: string; fin: string }
+  /** Feriados y recesos: esos días no hay clases */
+  feriados: Feriado[]
+}
 
 const semana = (entrada: string, salida: string, dias: DiaSemana[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']): HorarioPersona =>
   Object.fromEntries(dias.map(d => [d, { entrada, salida }])) as HorarioPersona
@@ -55,7 +64,20 @@ const MAT_MJ: Clase[] = [{ entrada: '10:00', salida: '11:20', materia: 'Matemát
 const LEN: Clase[] = [{ entrada: '13:30', salida: '14:50', materia: 'Lengua 3° A' }, { entrada: '15:00', salida: '16:20', materia: 'Lengua 3° B' }]
 const BIO: Clase[] = [{ entrada: '08:00', salida: '09:20', materia: 'Biología 4° A' }, { entrada: '10:00', salida: '11:20', materia: 'Biología 5° A' }]
 
+/** Feriados de ejemplo de un año (fechas de 2026; en la versión real se cargan cada año). */
+function feriadosEjemplo(y: number): Feriado[] {
+  const d = (m: number, dd: number, nombre: string): Feriado => ({ fecha: `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`, nombre })
+  const receso: Feriado[] = []
+  for (let dd = 20; dd <= 31; dd++) { const wd = new Date(y, 6, dd).getDay(); if (wd !== 0 && wd !== 6) receso.push(d(7, dd, 'Receso invernal')) }
+  return [d(1, 1, 'Año Nuevo'), d(2, 16, 'Carnaval'), d(2, 17, 'Carnaval'), d(3, 24, 'Día de la Memoria'), d(4, 2, 'Día de Malvinas'), d(4, 3, 'Viernes Santo'), d(5, 1, 'Día del Trabajador'),
+    d(5, 25, 'Revolución de Mayo'), d(6, 15, 'Paso a la Inmortalidad de Güemes'), d(6, 20, 'Día de la Bandera'), d(7, 9, 'Día de la Independencia'), ...receso, d(8, 17, 'Paso a la Inmortalidad de San Martín'),
+    d(10, 12, 'Día del Respeto a la Diversidad Cultural'), d(11, 23, 'Día de la Soberanía Nacional'), d(12, 8, 'Inmaculada Concepción'), d(12, 25, 'Navidad')]
+}
+const ANIO = new Date().getFullYear()
+
 export const CONFIG_INICIAL: ConfigDemo = {
+  ciclo: { inicio: `${ANIO}-03-02`, fin: `${ANIO}-12-18` },
+  feriados: feriadosEjemplo(ANIO),
   reglas: { tolerancia: 10, minutosAntes: 10, minutosDespues: 120, lugar: 'Escuela Modelo', radio: 150, redes: ['ESCUELA-MODELO', 'ESCUELA-MODELO-5G'], modo: 'una', tiempoMaximo: 3, qrModo: 'fijo', qrVersion: 1 },
   horarios: {
     preceptor: semana('07:30', '13:30'),

@@ -25,6 +25,9 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
   const [editando, setEditando] = useState<RolConHorario | null>(null)
   const [editClases, setEditClases] = useState<Persona | null>(null)
   const [regen, setRegen] = useState(false)
+  const [fDesde, setFDesde] = useState('')
+  const [fHasta, setFHasta] = useState('')
+  const [fNombre, setFNombre] = useState('')
   const [pantalla, setPantalla] = useState(false)
   const sucio = JSON.stringify(draft) !== JSON.stringify(guardada)
   const r = draft.reglas
@@ -38,6 +41,9 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
     if (!(r.minutosDespues >= 30 && r.minutosDespues <= 480)) e.minutosDespues = 'Ingresá un número de 30 a 480 minutos.'
     if (r.minutosDespues <= r.tolerancia) e.minutosDespues = 'El plazo máximo debe ser mayor que la tolerancia.'
     if (!(r.tiempoMaximo >= 1 && r.tiempoMaximo <= 10)) e.tiempoMaximo = 'Ingresá de 1 a 10 segundos.'
+    if (!draft.ciclo.inicio) e.cicloInicio = 'Indicá el primer día de clases.'
+    if (!draft.ciclo.fin) e.cicloFin = 'Indicá el último día de clases.'
+    else if (draft.ciclo.inicio && draft.ciclo.fin <= draft.ciclo.inicio) e.cicloFin = 'El último día debe ser posterior al primero.'
     if (!r.lugar.trim()) e.lugar = 'Indicá el nombre del lugar.'
     if (!(r.radio >= 20 && r.radio <= 2000)) e.radio = 'Ingresá un radio de 20 a 2000 metros.'
     if (!r.redes.length) e.redes = 'Agregá al menos una red Wi-Fi autorizada.'
@@ -61,6 +67,23 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
       <small>{ayuda}</small>{errores[k] && <span role="alert" className="field-error">{errores[k]}</span>}
     </label>)
 
+  const agregarFeriado = () => {
+    if (!fDesde) { setErrores({ feriado: 'Elegí al menos el día de comienzo.' }); return }
+    const hasta = fHasta && fHasta >= fDesde ? fHasta : fDesde
+    const nuevos = [...draft.feriados]
+    const cur = new Date(fDesde + 'T12:00:00'), fin = new Date(hasta + 'T12:00:00')
+    let n = 0
+    while (cur <= fin) { const s = cur.toISOString().slice(0, 10); if (!nuevos.some(x => x.fecha === s)) { nuevos.push({ fecha: s, nombre: fNombre.trim() || 'Feriado' }); n++ } cur.setDate(cur.getDate() + 1) }
+    setDraft(d => ({ ...d, feriados: nuevos })); setErrores({}); setFDesde(''); setFHasta(''); setFNombre('')
+    onNotify(`${n} día${n !== 1 ? 's' : ''} agregado${n !== 1 ? 's' : ''}. Recordá guardar los cambios.`)
+  }
+  // Agrupa feriados consecutivos con el mismo nombre para mostrarlos como un solo renglón
+  const gruposFeriados = [...draft.feriados].sort((a, b) => a.fecha.localeCompare(b.fecha)).reduce<{ nombre: string; fechas: string[] }[]>((acc, f) => {
+    const u = acc[acc.length - 1]
+    if (u && u.nombre === f.nombre && new Date(f.fecha + 'T12:00:00').getTime() <= new Date(u.fechas[u.fechas.length - 1] + 'T12:00:00').getTime() + 3 * 86400000) u.fechas.push(f.fecha); else acc.push({ nombre: f.nombre, fechas: [f.fecha] })
+    return acc
+  }, [])
+  const corta = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
   const ejemploEntrada = '08:00'
   return <>
     <PageHeading eyebrow="SISTEMA" title="Configuración" description="Definí cuándo se considera tarde, desde dónde se puede fichar y los horarios de cada persona. El sistema decide solo con estas reglas."
@@ -77,6 +100,26 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
         <div className="cfg-ejemplo"><Clock3 size={16} /><div><strong>Ejemplo con entrada a las {ejemploEntrada}</strong>
           <ul><li>Desde las <b>{sumarMin(ejemploEntrada, -(r.minutosAntes || 0))}</b> se puede fichar.</li><li>Hasta las <b>{sumarMin(ejemploEntrada, r.tolerancia || 0)}</b>: <StatusBadge tone="success">Presente</StatusBadge></li><li>De las {sumarMin(ejemploEntrada, (r.tolerancia || 0) + 1)} a las <b>{sumarMin(ejemploEntrada, r.minutosDespues || 0)}</b>: <StatusBadge tone="warning">Tardanza</StatusBadge> (solo docentes y preceptores)</li><li>Después: <StatusBadge tone="danger">Ausente</StatusBadge></li></ul></div></div>
         <p className="muted-cell">Los administrativos solo tienen Presente o Ausente: no se les aplica tardanza.</p>
+      </div></section>
+
+    <section className="panel cfg-sec"><div className="panel-header"><div><h2>Ciclo lectivo y feriados</h2><p>Define el calendario que ven todos: qué días hay clases y cuáles no.</p></div></div>
+      <div className="cfg-body">
+        <div className="cfg-grid two">
+          <label className="cfg-field">Primer día de clases<input type="date" value={draft.ciclo.inicio} aria-invalid={!!errores.cicloInicio} onChange={e => { setDraft(d => ({ ...d, ciclo: { ...d.ciclo, inicio: e.target.value } })); setErrores({}) }} />{errores.cicloInicio && <span role="alert" className="field-error">{errores.cicloInicio}</span>}</label>
+          <label className="cfg-field">Último día de clases<input type="date" value={draft.ciclo.fin} aria-invalid={!!errores.cicloFin} onChange={e => { setDraft(d => ({ ...d, ciclo: { ...d.ciclo, fin: e.target.value } })); setErrores({}) }} />{errores.cicloFin && <span role="alert" className="field-error">{errores.cicloFin}</span>}</label>
+        </div>
+        <h3 className="cfg-h">Feriados y recesos</h3>
+        <div className="cfg-grid">
+          <label className="cfg-field">Desde<input type="date" value={fDesde} onChange={e => { setFDesde(e.target.value); setErrores({}) }} /></label>
+          <label className="cfg-field">Hasta (si dura varios días)<input type="date" value={fHasta} min={fDesde} onChange={e => setFHasta(e.target.value)} /></label>
+          <label className="cfg-field">Nombre<input value={fNombre} onChange={e => setFNombre(e.target.value)} placeholder="Ej. Receso invernal" /></label>
+        </div>
+        <button className="button secondary inline" onClick={agregarFeriado}><Plus size={15} />Agregar al calendario</button>
+        {errores.feriado && <span role="alert" className="field-error">{errores.feriado}</span>}
+        {gruposFeriados.length === 0 ? <p className="muted-cell">No hay feriados cargados.</p> : <ul className="cfg-lista feriados">{gruposFeriados.map(g => <li key={g.fechas[0]}>
+          <span className="fer-fecha">{corta(g.fechas[0])}{g.fechas.length > 1 ? ` → ${corta(g.fechas[g.fechas.length - 1])}` : ''}</span><strong>{g.nombre}{g.fechas.length > 1 ? ` (${g.fechas.length} días)` : ''}</strong>
+          <button className="mini-btn bad" aria-label={`Quitar ${g.nombre}`} onClick={() => setDraft(d => ({ ...d, feriados: d.feriados.filter(f => !g.fechas.includes(f.fecha)) }))}><Trash2 size={12} /></button></li>)}</ul>}
+        <p className="muted-cell">Los feriados de este ejemplo son orientativos: cargá los oficiales de tu jurisdicción cada año.</p>
       </div></section>
 
     <section className="panel cfg-sec"><div className="panel-header"><div><h2>Ubicación y redes</h2><p>Desde dónde se acepta un fichaje</p></div></div>
