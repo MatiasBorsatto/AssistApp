@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, Check, CheckCircle2, Clock3, Info, X, XCircle, Zap } from 'lucide-react'
+import { Camera, Check, CheckCircle2, Clock3, CloudOff, Info, X, XCircle, Zap } from 'lucide-react'
 import { PageHeading } from './shared'
 import { MENSAJE_CAMARA, VisorCamara, type ErrorCamara } from './camara'
 import { clasificarQr } from '@/lib/qr-scan'
 import { useDemoBus } from '@/lib/demo-bus'
-import { CONFIG_INICIAL, DIAS, TIPO_LABEL, UBICACIONES, aplicaTardanza, evaluarFichaje, franjasDelDia, personaDePerfil, sumarMin, type DiaSemana, type QrLeido, type RedSim, type ResultadoFichaje } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, RNF1_SEGUNDOS, TIPO_LABEL, UBICACIONES, aplicaTardanza, evaluarFichaje, franjasDelDia, personaDePerfil, sumarMin, type DiaSemana, type Fichaje, type QrLeido, type RedSim, type ResultadoFichaje } from '@/lib/fichaje'
+import { encolar, leerCola, sincronizarCola, type FichajeEnCola } from '@/lib/cola-offline'
 import type { Role } from '@/lib/roles'
+
+const SIN_CONEXION = 'Sin conexión: la asistencia quedó guardada en tu celular y se enviará al volver la red.'
 
 /** Hoy como día de la semana de la demo (si es fin de semana, se simula un lunes). */
 const diaHoy = (): DiaSemana => { const i = new Date().getDay(); return i >= 1 && i <= 5 ? DIAS[i - 1].id : 'lunes' }
@@ -36,9 +39,27 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
   const [camara, setCamara] = useState(false)
   const [errorCamara, setErrorCamara] = useState<ErrorCamara | null>(null)
   const [leido, setLeido] = useState<{ texto: string; clase: QrLeido } | null>(null)
+  const [enLinea, setEnLinea] = useState(true)
+  const [cola, setCola] = useState<FichajeEnCola[]>([])
+  const [tiempoS, setTiempoS] = useState<number | null>(null)
 
   // Al cambiar de día o de persona, se propone una hora cercana a la entrada
   useEffect(() => { setHora(franja ? sumarMin(franja.entrada, 2) : '08:00'); setRes(null) }, [dia, persona.id, franja?.entrada, config]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // RNF2: se sigue la conexión del celular y, al volver, se envían los fichajes guardados sin conexión
+  useEffect(() => {
+    setCola(leerCola())
+    const ir = () => setEnLinea(true), volver = () => setEnLinea(false)
+    setEnLinea(navigator.onLine)
+    window.addEventListener('online', ir); window.addEventListener('offline', volver)
+    return () => { window.removeEventListener('online', ir); window.removeEventListener('offline', volver) }
+  }, [])
+  useEffect(() => {
+    if (!enLinea || !navigator.onLine) return
+    const n = sincronizarCola(f => { bus?.registrarFichaje(f); if (f.estado === 'Tardanza' && !f.pendiente) alertarTardanza(f) })
+    setCola([])
+    if (n) onNotify(n === 1 ? 'Conexión restablecida: se envió 1 fichaje guardado sin conexión.' : `Conexión restablecida: se enviaron ${n} fichajes guardados sin conexión.`)
+  }, [enLinea]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const redes: { v: string; label: string; red: RedSim }[] = useMemo(() => [
     ...reglas.redes.map((n, i) => ({ v: `wifi:${i}`, label: `${n} (red de la escuela)`, red: { kind: 'wifi' as const, nombre: n } })),
@@ -49,10 +70,17 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
 
   const escanear = (qrOverride?: QrLeido) => {
     if (validando) return
+    const t0 = performance.now()
     const r = evaluarFichaje({ persona, franjas, dia, hora, metros: UBICACIONES.find(u => u.id === ubic)!.metros, red: redActual.red, reglas, qr: qrOverride ?? qr })
     setRes(null); setValidando(true)
     // En la demo la espera se acorta; el tiempo real validado se informa en el resultado.
-    setTimeout(() => { setValidando(false); setRes(r); aplicar(r) }, r.estado === 'pendiente' ? 1500 : 500)
+    setTimeout(() => { setValidando(false); setTiempoS((performance.now() - t0) / 1000); setRes(r); aplicar(r) }, r.estado === 'pendiente' ? 1500 : 500)
+  }
+  /** Con conexión se registra en el momento; sin conexión queda en el celular hasta que vuelva la red. */
+  const guardar = (f: Fichaje) => { if (enLinea) bus?.registrarFichaje(f); else setCola(encolar(f)) }
+  const alertarTardanza = (f: Fichaje) => {
+    const nombre = config.personal.find(p => p.id === f.personaId)?.nombre ?? persona.nombre
+    bus?.push({ para: (['Administrador', 'Preceptor'] as Role[]).filter(x => x !== role), title: 'Alerta de tardanza', msg: `${nombre} registró su entrada a las ${f.hora}: ${f.minutosTarde} min después de su horario.`, tone: 'warning' })
   }
   const abrirCamara = () => { if (validando || camara) return; setErrorCamara(null); setLeido(null); setRes(null); setCamara(true) }
   /** La cámara real encontró un QR: se compara con el código de la escuela y se sigue con las mismas validaciones. */
@@ -64,14 +92,15 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
   const aplicar = (r: ResultadoFichaje) => {
     if (r.estado === 'pendiente') {
       const hoy = new Date().toISOString().slice(0, 10)
-      bus?.registrarFichaje({ personaId: persona.id, fecha: hoy, hora, estado: r.asistencia!, minutosTarde: r.minutosTarde, pendiente: true })
-      bus?.push({ para: (['Administrador'] as Role[]).filter(x => x !== role), title: 'Fichaje pendiente de validar', msg: `${persona.nombre} fichó a las ${hora} pero no se pudo validar el GPS a tiempo. Confirmalo en Gestionar asistencia.`, tone: 'blue' })
+      guardar({ personaId: persona.id, fecha: hoy, hora, estado: r.asistencia!, minutosTarde: r.minutosTarde, pendiente: true })
+      if (enLinea) bus?.push({ para: (['Administrador'] as Role[]).filter(x => x !== role), title: 'Fichaje pendiente de validar', msg: `${persona.nombre} fichó a las ${hora} pero no se pudo validar el GPS a tiempo. Confirmalo en Gestionar asistencia.`, tone: 'blue' })
       onNotify(`No se pudo validar a tiempo: tu fichaje quedó guardado con la hora ${hora} y se confirma después.`)
     } else if (r.estado === 'registrado') {
       const hoy = new Date().toISOString().slice(0, 10)
-      bus?.registrarFichaje({ personaId: persona.id, fecha: hoy, hora, estado: r.asistencia!, minutosTarde: r.minutosTarde })
-      if (r.asistencia === 'Tardanza') {
-        bus?.push({ para: (['Administrador', 'Preceptor', 'Profesor'] as Role[]).filter(x => x !== role && x !== 'Profesor'), title: 'Alerta de tardanza', msg: `${persona.nombre} registró su entrada a las ${hora}: ${r.minutosTarde} min después de su horario (${r.entrada}).`, tone: 'warning' })
+      guardar({ personaId: persona.id, fecha: hoy, hora, estado: r.asistencia!, minutosTarde: r.minutosTarde })
+      if (!enLinea) onNotify(SIN_CONEXION)
+      else if (r.asistencia === 'Tardanza') {
+        alertarTardanza({ personaId: persona.id, fecha: hoy, hora, estado: 'Tardanza', minutosTarde: r.minutosTarde })
         onNotify(`Asistencia registrada con tardanza (${r.minutosTarde} min). Se generó una alerta.`)
       } else onNotify(`Asistencia registrada a las ${hora}.`)
     } else if (r.estado === 'rechazado') onNotify('No se pudo registrar: revisá ubicación y red Wi-Fi.')
@@ -100,6 +129,7 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
           <label>Hora del fichaje<input type="time" value={hora} onChange={e => { setHora(e.target.value); setRes(null) }} /></label>
           <label>Ubicación<select value={ubic} onChange={e => { setUbic(e.target.value); setRes(null) }}>{UBICACIONES.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}</select></label>
           <label>Red<select value={redSel} onChange={e => { setRedSel(e.target.value); setRes(null) }}>{redes.map(r => <option key={r.v} value={r.v}>{r.label}</option>)}</select></label>
+          <label>Conexión del celular<select value={enLinea ? 'si' : 'no'} onChange={e => { setEnLinea(e.target.value === 'si'); setRes(null) }}><option value="si">Con conexión</option><option value="no">Sin conexión (se guarda en el celular)</option></select></label>
           <label>Código que escanea<select value={qr} onChange={e => { setQr(e.target.value as QrLeido); setRes(null) }}><option value="vigente">El de la puerta (vigente)</option><option value="foto">Una foto del código</option><option value="anterior">Un código anterior (ya reemplazado)</option><option value="otro">Código de otro lugar</option></select></label>
         </fieldset>
         <p className="sim-nota"><Info size={13} /> Los límites salen de <strong>Configuración</strong> (tolerancia {reglas.tolerancia} min, perímetro {reglas.radio} m, {reglas.modo === 'una' ? 'alcanza con GPS o Wi-Fi' : 'se validan GPS y Wi-Fi'}, espera máxima {reglas.tiempoMaximo} s). {persona.tipo === 'docente' ? (franjas.length ? `Tus clases ese día: ${franjas.map(c => `${c.entrada}–${c.salida} ${c.materia}`).join(' · ')}.` : 'No tenés clases ese día.') : (franja ? `Tu horario ese día (${TIPO_LABEL[persona.tipo].toLowerCase()}): ${franja.entrada} a ${franja.salida}.` : 'Tu rol no tiene horario ese día.')}{!aplicaTardanza(persona.tipo) && ' Como administrativo/a, solo se registra Presente o Ausente.'}</p>
@@ -109,17 +139,19 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
       <section className="panel validation-panel"><div className="panel-header"><div><h2>Validación del registro</h2><p>Ubicación, red y horario</p></div></div>
         <div className="validation-list">{filas.map(([label, detalle, st]) => <div className="validation-row" key={label}><div className={`check-circle ${st === false ? 'fail' : st === null ? 'idle' : ''}`}>{st === false ? <X size={15} /> : <Check size={15} />}</div><div><strong>{label}</strong><span>{detalle}</span></div></div>)}</div>
         {validando && <div className="result-banner info" role="status"><Clock3 size={18} /><span>Validando ubicación y red… (máximo {reglas.tiempoMaximo} s). La hora que cuenta es la del escaneo: <strong>{hora}</strong>.</span></div>}
-        {res && <Banner res={res} hora={hora} tardanza={aplicaTardanza(persona.tipo)} />}
+        {res && <Banner res={res} hora={hora} offline={!enLinea} />}
+        {cola.length > 0 && <p className="sim-nota"><CloudOff size={13} /> Hay {cola.length} fichaje{cola.length === 1 ? '' : 's'} guardado{cola.length === 1 ? '' : 's'} sin conexión. Se envía{cola.length === 1 ? '' : 'n'} solo{cola.length === 1 ? '' : 's'} al volver la red.</p>}
+        <p className="sim-nota"><Clock3 size={13} /> Tiempo de procesamiento: {tiempoS === null ? 'se mide en cada fichaje' : `${tiempoS.toFixed(2).replace('.', ',')} s`} (objetivo: menos de {RNF1_SEGUNDOS} s).</p>
       </section>
     </div>
   </>
 }
 
-function Banner({ res, hora, tardanza }: { res: ResultadoFichaje; hora: string; tardanza: boolean }) {
+function Banner({ res, hora, offline }: { res: ResultadoFichaje; hora: string; offline: boolean }) {
   const pie = res.validadoPor ? ` Validado por ${res.validadoPor} en ${String(res.segundos).replace('.', ',')} s.` : ''
   if (res.estado === 'pendiente') return <div className="result-banner info" role="status"><Info size={18} /><span>No se pudo validar a tiempo ({res.segundos} s), <strong>pero no perdés nada</strong>: tu fichaje quedó guardado con la hora del escaneo ({hora}){res.asistencia === 'Tardanza' ? ` como tardanza de ${res.minutosTarde} min` : ' como presente'} y queda <strong>pendiente de validar</strong>. Se confirma cuando haya señal.</span></div>
-  if (res.estado === 'registrado' && res.asistencia === 'Presente') return <div className="result-banner success" role="status"><CheckCircle2 size={18} /><span>Asistencia registrada a las {hora}. ¡Buen día!{pie}</span></div>
-  if (res.estado === 'registrado') return <div className="result-banner warning" role="status"><Clock3 size={18} /><span>Registrada a las {hora}: llegaste <strong>{res.minutosTarde} min tarde</strong> (tolerancia hasta las {res.limiteTardanza}). <strong>Se generó una alerta de tardanza</strong> para preceptoría y administración.{pie}</span></div>
+  if (res.estado === 'registrado' && res.asistencia === 'Presente') return <div className="result-banner success" role="status"><CheckCircle2 size={18} /><span>Asistencia registrada a las {hora}. ¡Buen día!{pie}{offline && ` ${SIN_CONEXION}`}</span></div>
+  if (res.estado === 'registrado') return <div className="result-banner warning" role="status"><Clock3 size={18} /><span>Registrada a las {hora}: llegaste <strong>{res.minutosTarde} min tarde</strong> (tolerancia hasta las {res.limiteTardanza}). <strong>Se generó una alerta de tardanza</strong> para preceptoría y administración.{pie}{offline && ` ${SIN_CONEXION}`}</span></div>
   const texto = res.estado === 'qr_invalido' ? `${res.horario.detalle}. Escaneá el código vigente que está en la puerta (lo genera el administrador).`
     : res.estado === 'rechazado' ? 'No se registró la asistencia. Acercate a la escuela, conectate a su Wi-Fi y reintentá.'
     : res.estado === 'sin_horario' ? 'No tenés horario cargado ese día, así que no corresponde fichar.'

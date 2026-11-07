@@ -202,3 +202,6 @@ export function evaluarFichaje(p: { persona: Persona; franjas: Clase[]; dia: Dia
 }
 
 export type Fichaje = { personaId: string; fecha: string; hora: string; estado: 'Presente' | 'Tardanza'; minutosTarde: number; pendiente?: boolean }
+
+/** RNF1: el fichaje debe quedar procesado en menos de este tiempo (segundos), medido desde el escaneo hasta el resultado. */
+export const RNF1_SEGUNDOS = 3
