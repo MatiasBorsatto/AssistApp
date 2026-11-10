@@ -6,8 +6,9 @@ import { PageHeading } from './shared'
 import { MENSAJE_CAMARA, VisorCamara, type ErrorCamara } from './camara'
 import { clasificarQr } from '@/lib/qr-scan'
 import { useDemoBus } from '@/lib/demo-bus'
-import { CONFIG_INICIAL, DIAS, RNF1_SEGUNDOS, TIPO_LABEL, UBICACIONES, aplicaTardanza, evaluarFichaje, franjasDelDia, personaDePerfil, sumarMin, type DiaSemana, type Fichaje, type QrLeido, type RedSim, type ResultadoFichaje } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, RNF1_SEGUNDOS, distanciaMetros, TIPO_LABEL, UBICACIONES, aplicaTardanza, evaluarFichaje, franjasDelDia, personaDePerfil, sumarMin, type DiaSemana, type Fichaje, type QrLeido, type RedSim, type ResultadoFichaje } from '@/lib/fichaje'
 import { encolar, leerCola, sincronizarCola, type FichajeEnCola } from '@/lib/cola-offline'
+import { MENSAJE_GPS, obtenerUbicacion, type ErrorGps, type Posicion } from '@/lib/geo'
 import type { Role } from '@/lib/roles'
 
 const SIN_CONEXION = 'Sin conexión: la asistencia quedó guardada en tu celular y se enviará al volver la red.'
@@ -42,6 +43,8 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
   const [enLinea, setEnLinea] = useState(true)
   const [cola, setCola] = useState<FichajeEnCola[]>([])
   const [tiempoS, setTiempoS] = useState<number | null>(null)
+  const [errorGps, setErrorGps] = useState<string | null>(null)
+  const [gpsLeido, setGpsLeido] = useState<Posicion | null>(null)
 
   // Al cambiar de día o de persona, se propone una hora cercana a la entrada
   useEffect(() => { setHora(franja ? sumarMin(franja.entrada, 2) : '08:00'); setRes(null) }, [dia, persona.id, franja?.entrada, config]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,13 +71,20 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
   ], [reglas.redes])
   const redActual = redes.find(r => r.v === redSel) ?? redes[0]
 
-  const escanear = (qrOverride?: QrLeido) => {
+  const escanear = async (qrOverride?: QrLeido) => {
     if (validando) return
     const t0 = performance.now()
-    const r = evaluarFichaje({ persona, franjas, dia, hora, metros: UBICACIONES.find(u => u.id === ubic)!.metros, red: redActual.red, reglas, qr: qrOverride ?? qr })
-    setRes(null); setValidando(true)
-    // En la demo la espera se acorta; el tiempo real validado se informa en el resultado.
-    setTimeout(() => { setValidando(false); setTiempoS((performance.now() - t0) / 1000); setRes(r); aplicar(r) }, r.estado === 'pendiente' ? 1500 : 500)
+    setRes(null); setValidando(true); setErrorGps(null); setGpsLeido(null)
+    let metros = UBICACIONES.find(u => u.id === ubic)!.metros
+    // GPS real: se mide la distancia al punto de la escuela; si no responde a tiempo, cuenta como "sin respuesta" (queda pendiente)
+    if (ubic === 'real') {
+      if (!reglas.punto) { setValidando(false); setErrorGps('Falta cargar la ubicación de la escuela en Configuración → Ubicación y redes.'); return }
+      try { const pos = await obtenerUbicacion(reglas.tiempoMaximo * 1000); metros = distanciaMetros(pos, reglas.punto); setGpsLeido(pos) }
+      catch (e) { if (e !== 'tiempo') { setValidando(false); setErrorGps(MENSAJE_GPS[e as ErrorGps] ?? MENSAJE_GPS.sin_senal); return } metros = null }
+    }
+    const r = evaluarFichaje({ persona, franjas, dia, hora, metros, red: redActual.red, reglas, qr: qrOverride ?? qr })
+    // En la demo la espera simulada se acorta; con GPS real ya se esperó la lectura.
+    setTimeout(() => { setValidando(false); setTiempoS((performance.now() - t0) / 1000); setRes(r); aplicar(r) }, ubic === 'real' ? 0 : r.estado === 'pendiente' ? 1500 : 500)
   }
   /** Con conexión se registra en el momento; sin conexión queda en el celular hasta que vuelva la red. */
   const guardar = (f: Fichaje) => { if (enLinea) bus?.registrarFichaje(f); else setCola(encolar(f)) }
@@ -122,6 +132,8 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
           <span className="sc-c tl" /><span className="sc-c tr" /><span className="sc-c bl" /><span className="sc-c br" /><span className="scan-line" />
           <div className="sc-texto"><Camera size={26} /><strong>{validando ? 'Leyendo el código…' : 'Tocá para abrir la cámara'}</strong><small>y apuntá al código QR pegado en la puerta de {reglas.lugar}</small></div></div>}
         {errorCamara && <p role="alert" className="form-error camara-error">{MENSAJE_CAMARA[errorCamara]}</p>}
+        {errorGps && <p role="alert" className="form-error camara-error">{errorGps}</p>}
+        {gpsLeido && <p className="codigo-leido"><strong>Ubicación leída:</strong> precisión de ±{gpsLeido.precision} m</p>}
         {leido && <p className="codigo-leido"><strong>Código leído:</strong> <code>{leido.texto}</code> · {leido.clase === 'vigente' ? 'es el de la escuela' : leido.clase === 'anterior' ? 'es de una versión anterior' : 'no pertenece a esta institución'}</p>}
 
         <fieldset className="sim-device"><legend>Condiciones del celular (solo para la demostración)</legend>

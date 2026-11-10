@@ -42,6 +42,8 @@ export type ReglasFichaje = {
   qrModo: 'fijo' | 'pantalla'
   /** Sube cada vez que se regenera el código: el impreso anterior deja de servir */
   qrVersion: number
+  /** Punto de la escuela para medir la distancia con el GPS real del celular (null: todavía no se cargó) */
+  punto: { lat: number; lng: number } | null
 }
 /** Preceptores y administrativos tienen un horario fijo, que se define por ROL. Los docentes tienen sus clases (por persona). */
 export type RolConHorario = 'preceptor' | 'administrativo'
@@ -78,7 +80,7 @@ const ANIO = new Date().getFullYear()
 export const CONFIG_INICIAL: ConfigDemo = {
   ciclo: { inicio: `${ANIO}-03-02`, fin: `${ANIO}-12-18` },
   feriados: feriadosEjemplo(ANIO),
-  reglas: { tolerancia: 10, minutosAntes: 10, minutosDespues: 120, lugar: 'Escuela Modelo', radio: 150, redes: ['ESCUELA-MODELO', 'ESCUELA-MODELO-5G'], modo: 'una', tiempoMaximo: 3, qrModo: 'fijo', qrVersion: 1 },
+  reglas: { tolerancia: 10, minutosAntes: 10, minutosDespues: 120, lugar: 'Escuela Modelo', radio: 150, redes: ['ESCUELA-MODELO', 'ESCUELA-MODELO-5G'], modo: 'una', tiempoMaximo: 3, qrModo: 'fijo', qrVersion: 1, punto: null },
   horarios: {
     preceptor: semana('07:30', '13:30'),
     administrativo: semana('08:00', '16:00'),
@@ -108,7 +110,15 @@ export const UBICACIONES = [
   { id: 'cerca', label: 'En la vereda de enfrente (a 140 m)', metros: 140 },
   { id: 'lejos', label: 'En la calle, lejos (a 850 m)', metros: 850 },
   { id: 'sin_gps', label: 'Dentro de la escuela, pero el GPS no responde', metros: null as number | null },
+  { id: 'real', label: 'Mi ubicación real (GPS del celular)', metros: null as number | null },
 ]
+
+/** Distancia en metros entre dos puntos (fórmula de haversine). */
+export function distanciaMetros(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const rad = (g: number) => (g * Math.PI) / 180
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2
+  return Math.round(2 * 6371000 * Math.asin(Math.sqrt(h)))
+}
 export type RedSim = { kind: 'wifi' | 'datos'; nombre: string }
 
 export type ResultadoFichaje = {

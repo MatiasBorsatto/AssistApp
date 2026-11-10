@@ -5,6 +5,7 @@ import { Check, Clock3, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { Avatar, PageHeading, StatusBadge } from './shared'
 import { PantallaIngreso, QrAcciones, QrImagen, textoQrFijo } from './qr'
 import { useDemoBus } from '@/lib/demo-bus'
+import { MENSAJE_GPS, obtenerUbicacion, type ErrorGps } from '@/lib/geo'
 import { CONFIG_INICIAL, DIAS, TIPO_LABEL, aplicaTardanza, sumarMin, type Clase, type ConfigDemo, type DiaSemana, type HorarioPersona, type Persona, type RolConHorario } from '@/lib/fichaje'
 
 const clon = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
@@ -32,6 +33,12 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
   const sucio = JSON.stringify(draft) !== JSON.stringify(guardada)
   const r = draft.reglas
   const setR = (p: Partial<ConfigDemo['reglas']>) => { setDraft(d => ({ ...d, reglas: { ...d.reglas, ...p } })); setErrores({}) }
+  const [gps, setGps] = useState({ cargando: false, error: '' })
+  const tomarPunto = async () => {
+    setGps({ cargando: true, error: '' })
+    try { const pos = await obtenerUbicacion(10000); setR({ punto: { lat: pos.lat, lng: pos.lng } }); setGps({ cargando: false, error: '' }) }
+    catch (e) { setGps({ cargando: false, error: MENSAJE_GPS[e as ErrorGps] ?? MENSAJE_GPS.sin_senal }) }
+  }
   const num = (v: string) => (v === '' ? NaN : Math.round(Number(v)))
 
   const validar = () => {
@@ -127,6 +134,12 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
         <div className="cfg-grid two">
           <label className="cfg-field">Nombre del lugar<input value={r.lugar} aria-invalid={!!errores.lugar} onChange={e => setR({ lugar: e.target.value })} />{errores.lugar && <span role="alert" className="field-error">{errores.lugar}</span>}</label>
           {campo('radio', 'Radio permitido', 'metros', 'Distancia máxima a la escuela (GPS del celular).', 20, 2000)}
+        </div>
+        <div className="cfg-field">Punto de la escuela (para el GPS real)
+          <span>{r.punto ? `${r.punto.lat.toFixed(5)}, ${r.punto.lng.toFixed(5)}` : 'Todavía no se cargó.'}</span>
+          <button type="button" className="button secondary inline" onClick={tomarPunto} disabled={gps.cargando}>{gps.cargando ? 'Leyendo ubicación…' : 'Usar mi ubicación actual'}</button>
+          <small>Parate en la entrada de la escuela, tocá el botón y después guardá los cambios. Se usa para medir la distancia cuando alguien ficha con «Mi ubicación real».</small>
+          {gps.error && <span role="alert" className="field-error">{gps.error}</span>}
         </div>
         <div className="cfg-grid two">
           <label className="cfg-field">Cómo se valida el fichaje<select value={r.modo} onChange={e => setR({ modo: e.target.value as 'una' | 'ambas' })}><option value="una">Alcanza con GPS o Wi-Fi (recomendado)</option><option value="ambas">Deben validar GPS y Wi-Fi</option></select><small>Con “GPS o Wi-Fi”, se acepta apenas una de las dos lo confirma: es más rápido y evita bloquear a quien tiene una falla.</small></label>

@@ -213,7 +213,7 @@ button { cursor:pointer; }
 .panel{margin-bottom:18px}
 .button.inline{margin:0;width:auto}
 .button:disabled{opacity:.5;cursor:not-allowed}
-.disabled-panel .table-scroll{opacity:.7}
+.disabled-panel .table-scroll{background:#f6f8fb}
 .scenario{margin:0 21px 14px}
 .check-circle.fail{background:#ffeded;color:#b83a3a}
 .check-circle.idle{background:#eef1f5;color:#5b6b80}

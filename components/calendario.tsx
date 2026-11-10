@@ -75,9 +75,9 @@ export function CalendarioView({ config, eventos, titulo = 'Calendario del ciclo
 
     <div className="cal-layout">
       <section className="panel cal-panel">
-        {vista === 'mes' ? <div className="cal-mes" role="grid" aria-label={`${MESES[mes]} ${anio}`}>
-          <div className="cal-cab" role="row">{DIAS.map(d => <span key={d} role="columnheader">{d}</span>)}</div>
-          {semanasDelMes(anio, mes).map((sem, i) => <div className="cal-sem" role="row" key={i}>{sem.map((iso, j) => iso ? celda(iso) : <span key={j} className="dia vacio" aria-hidden="true" />)}</div>)}
+        {vista === 'mes' ? <div className="cal-mes" role="group" aria-label={`${MESES[mes]} ${anio}`}>
+          <div className="cal-cab" aria-hidden="true">{DIAS.map(d => <span key={d}>{d}</span>)}</div>
+          {semanasDelMes(anio, mes).map((sem, i) => <div className="cal-sem" key={i}>{sem.map((iso, j) => iso ? celda(iso) : <span key={j} className="dia vacio" aria-hidden="true" />)}</div>)}
         </div> : <div className="cal-ciclo">{meses.map(({ a, m }) => <div className="mini-mes" key={`${a}-${m}`}>
           <button className="mini-mes-t" onClick={() => { setAnio(a); setMes(m); setVista('mes') }}>{MESES[m]} {a !== meses[0].a ? a : ''}</button>
           <div className="cal-cab mini">{DIAS.map(d => <span key={d}>{d[0]}</span>)}</div>

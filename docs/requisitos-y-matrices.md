@@ -10,11 +10,11 @@ Documento de trabajo del prototipo. El estado se marca con tres valores:
 
 | Código | Requisito | Estado | Dónde está en la app |
 |---|---|---|---|
-| RF1 | Registrar ingreso y egreso con código QR institucional o app móvil. | Implementado (QR, GPS, Wi-Fi y horario, en el prototipo). | Inicio → Registrar asistencia (`components/fichar.tsx`, `lib/fichaje.ts`). |
+| RF1 | Registrar ingreso y egreso con código QR institucional o app móvil. | Parcial: QR (cámara) y GPS reales; Wi-Fi simulado; solo en el modo demostración. | Inicio → Registrar asistencia (`components/fichar.tsx`, `lib/fichaje.ts`). |
 | RF2 | Carga masiva de nómina y horarios por CSV o Excel. | Parcial: importación en modo real. Sin carga masiva en el prototipo de demostración. | Modo real: `components/live/` y `lib/importar.ts`. |
 | RF3 | Notificaciones automáticas al registrar un aviso temprano de inasistencia. | Parcial: alertas dentro de la aplicación (campanita). No hay notificación push ni WhatsApp. | `components/aviso.tsx`, `components/Shell.tsx`. |
 | RF4 | Módulo exclusivo para que el equipo directivo apruebe, rechace o justifique faltas y licencias. | Implementado. | Justificaciones (`components/justificaciones.tsx`). |
-| RF5 | Exportar reportes consolidados en Excel (.xlsx) y PDF para liquidación de haberes. | Implementado. La descarga del PDF se confirmó en la sesión de pruebas solo con el aviso; falta verificar el archivo descargado. | Reportes (`components/reportes.tsx`, `lib/export.ts`). |
+| RF5 | Exportar reportes consolidados en Excel (.xlsx) y PDF para liquidación de haberes. | Implementado. Excel y PDF descargados y verificados (10/11/2026). | Reportes (`components/reportes.tsx`, `lib/export.ts`). |
 
 ## 2. Requisitos no funcionales (RNF)
 
@@ -58,6 +58,8 @@ Documento de trabajo del prototipo. El estado se marca con tres valores:
 | P1. Fichaje con conexión | Perfil Preceptor → Mi asistencia → Escaneo simulado con conexión. | Asistencia registrada en menos de 3 s. | Registrado. Tiempo medido: 0,51 s. |
 | P2. Fichaje sin conexión | Conexión del celular: "Sin conexión" → Escaneo simulado. | Queda guardado en el celular, con aviso de cola. | Registrado en cola. Aviso: "Sin conexión… se enviará al volver la red". |
 | P3. Sincronización | Volver a "Con conexión". | Se envía la cola y se muestra aviso. | "Conexión restablecida: se envió 1 fichaje guardado sin conexión." La cola queda vacía. |
-| P4. Descarga de PDF | Reportes → Exportar PDF. | Se descarga el archivo. | Pendiente: el aviso aparece, no se confirmó el archivo descargado. |
+| P4. Descarga de PDF | Reportes → Exportar PDF. | Se descarga el archivo. | Descargado: PDF válido de 32 KB. |
+| P5. GPS real | Mi asistencia → «Mi ubicación real» con el punto de la escuela cargado. | Registra dentro del radio y rechaza fuera. | A 40 m: registrado. A 1.990 m: fuera del perímetro. |
+| P6. Accesibilidad automática | axe-core sobre 12 pantallas. | Sin violaciones WCAG 2.1 AA. | Sin violaciones tras corregir contraste y calendario. |
 
 Pruebas anteriores de la sesión (justificaciones con rango de fechas, calendario y reportes) se registrarán aquí cuando se revisen los registros de la sesión anterior.
