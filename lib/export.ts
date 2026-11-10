@@ -12,6 +12,16 @@ export function exportarExcel(datos: Fila[], columnas: string[], nombreArchivo: 
   XLSX.writeFile(wb, `${nombreArchivo}.xlsx`)
 }
 
+/** CSV separado por punto y coma, con BOM para que Excel respete los acentos. */
+export function exportarCSV(datos: Fila[], columnas: string[], nombreArchivo: string) {
+  const celda = (v: string | number) => { const t = String(v ?? ''); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t }
+  const texto = [columnas, ...datos].map(f => f.map(celda).join(';')).join('\r\n')
+  const url = URL.createObjectURL(new Blob(['﻿' + texto], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url; a.download = `${nombreArchivo}.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function exportarPDF(titulo: string, subtitulo: string, columnas: string[], datos: Fila[], nombreArchivo: string) {
   const doc = new jsPDF({ orientation: datos.length > 20 || columnas.length > 6 ? 'l' : 'p' })
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(titulo, 14, 18)

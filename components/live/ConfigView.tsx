@@ -6,8 +6,10 @@ import { useLive } from './LiveContext'
 import { PageHeading } from '../shared'
 import {
   cerrarCiclo, crearGrupo, eliminarBackup, eliminarGrupo, guardarConfig, insertarDocentes, listarBackups, listarCiclosArchivados, renombrarGrupo,
-  restaurarBackup, restaurarCiclo, novedadesRango, type Backup, type CicloArchivado,
+  restaurarBackup, restaurarCiclo, novedadesRango, leerDato, guardarDato, type Backup, type CicloArchivado,
 } from '@/lib/repo'
+import { FORMATO_INICIAL, type FormatoCidi } from '@/lib/cidi'
+import { EditorFormatoCidi } from '../cidi'
 import { descargarJSON, exportarExcel, exportarPDF } from '@/lib/export'
 import { parsearExcelDocentes } from '@/lib/importar'
 import { DIA_NOMBRE, LABELS, fechaDate, fmtFecha, nombreMostrar, type Nivel } from '@/lib/domain'
@@ -20,6 +22,7 @@ export function ConfigView() {
     <CicloFeriados />
     <Grupos />
     <Importar />
+    <FormatoCidiSec />
     <Backups />
     <Ciclos />
   </>
@@ -187,5 +190,17 @@ function Ciclos() {
     {!items.length ? <p className="muted-cell">No hay ciclos archivados.</p> : <ul className="cfg-lista">{items.map(c => (
       <li key={c.id}><strong>Ciclo {c.anio}</strong><small>{c.data?.totalNovedades ?? 0} registros · archivado el {c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '—'}</small>
         <button className="mini-btn ok" onClick={async () => { if (window.confirm(`¿Restaurar el ciclo ${c.anio}? Se reimportan sus novedades.`)) { try { await restaurarCiclo(c.id); notify('Ciclo restaurado.'); await recargar() } catch (e) { setError((e as Error).message) } } }}><RotateCcw size={12} /> Restaurar</button></li>))}</ul>}
+  </Seccion>
+}
+
+/** Código de cada tipo de novedad en CIDI, para la exportación semanal (Reportes → Para CIDI). */
+function FormatoCidiSec() {
+  const { notify } = useLive()
+  const [f, setF] = useState<FormatoCidi | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => { leerDato<FormatoCidi>('cidi_formato', FORMATO_INICIAL).then(setF).catch(e => setError((e as Error).message)) }, [])
+  return <Seccion titulo="Formato para CIDI" sub="Código que usa CIDI para cada tipo de novedad. Pedíselo a quien carga las novedades en CIDI.">
+    {error ? <p role="alert" className="form-error flow-error">{error}</p> : !f ? <p className="empty-state">Cargando…</p>
+      : <EditorFormatoCidi valor={f} onGuardar={async x => { await guardarDato('cidi_formato', x); setF(x); notify('Formato para CIDI guardado.') }} />}
   </Seccion>
 }

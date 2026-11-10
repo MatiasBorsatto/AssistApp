@@ -39,6 +39,17 @@ export async function guardarConfig(anio: number, cfg: Config) {
   r.forEach(x => { if (x.error) throw new Error(x.error.message) })
 }
 
+/** Datos sueltos guardados como una fila de la tabla config (por ejemplo, el formato y las semanas de CIDI). */
+export async function leerDato<T>(id: string, porDefecto: T): Promise<T> {
+  const res = await db().from('config').select('data').eq('id', id).maybeSingle()
+  if (res.error) throw new Error(res.error.message)
+  return (res.data?.data as T) ?? porDefecto
+}
+export async function guardarDato(id: string, data: unknown) {
+  const res = await db().from('config').upsert({ id, data })
+  if (res.error) throw new Error(res.error.message)
+}
+
 // ── Docentes ──
 type FilaDocente = Record<string, unknown>
 function mapDocente(r: FilaDocente): Docente {

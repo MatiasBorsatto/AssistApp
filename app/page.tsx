@@ -19,6 +19,7 @@ import { initialJustifications, initialUsers, type AppUser, type Justification }
 import { roleOrder, roles, type Role, type ViewId } from '@/lib/roles'
 import { getSupabase, supabaseConfigurado } from '@/lib/supabase'
 import { DemoBusCtx, type DemoBus, type DemoNotif } from '@/lib/demo-bus'
+import { FORMATO_INICIAL } from '@/lib/cidi'
 
 type Modo = 'inicio' | 'demo' | 'real'
 
@@ -62,13 +63,14 @@ function Demo({ onExit }: { onExit: () => void }) {
   const [notifs, setNotifs] = useState<DemoNotif[]>([])
   const [config, setConfig] = useState<ConfigDemo>(CONFIG_INICIAL)
   const [fichajes, setFichajes] = useState<Record<string, Fichaje>>({})
+  const [cidi, setCidi] = useState<DemoBus['cidi']>({ formato: FORMATO_INICIAL, semanas: [] })
 
   const notify = (message?: string) => {
     setToast(typeof message === 'string' ? message : 'Los cambios se guardaron correctamente.')
     setTimeout(() => setToast(null), 3500)
   }
   const bus: DemoBus = {
-    notifs, config, setConfig, fichajes, justificaciones: justifications,
+    notifs, config, setConfig, fichajes, justificaciones: justifications, cidi, setCidi,
     registrarFichaje: f => setFichajes(prev => ({ ...prev, [f.personaId]: f })),
     push: n => setNotifs(p => [{ id: Date.now() + p.length, para: n.para, title: n.title, msg: n.msg, tone: n.tone || 'blue', time: 'Ahora', read: [] }, ...p]),
     addJustification: j => setJustifications(p => [{ ...j, id: Math.max(0, ...p.map(x => x.id)) + 1, status: 'Pendiente' }, ...p]),

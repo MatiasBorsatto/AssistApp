@@ -9,6 +9,7 @@ import { CONFIG_INICIAL } from '@/lib/fichaje'
 import { PERIODOS, construirReporte, fechaLegible, type Periodo, type Reporte } from '@/lib/demo-report'
 import { exportarExcelMulti, exportarPDFMulti } from '@/lib/export'
 import type { Role } from '@/lib/roles'
+import { CidiDemo } from './cidi-demo'
 
 const COLORES_DIST = ['#d98a0b', '#4b5d78', '#d64545']
 const COLORES_MOT = ['#d98a0b', '#4b5d78', '#d64545', '#8a96a8', '#117a4f']
@@ -35,7 +36,7 @@ export function ReportsView({ role, onNotify }: { role: Role; onNotify: (m?: str
   const [periodo, setPeriodo] = useState<Periodo>('Este mes')
   const alcances = esPrec ? ['Todos mis cursos', ...Object.keys(courses)] : ['Toda la institución', 'Nivel Primario', 'Nivel Secundario']
   const [alcance, setAlcance] = useState(alcances[0])
-  const [tab, setTab] = useState<'resumen' | 'detalle'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'detalle' | 'cidi'>('resumen')
   const hoy = new Date().toISOString().slice(0, 10)
 
   const datos = { role, config, justificaciones: bus?.justificaciones ?? [], fichajes: bus?.fichajes ?? {}, alcance }
@@ -75,13 +76,17 @@ export function ReportsView({ role, onNotify }: { role: Role; onNotify: (m?: str
       action={<div className="descargas"><span>Descargar este reporte:</span><button className="button secondary" onClick={excel}><FileSpreadsheet size={16} />Excel</button><button className="button secondary" onClick={pdf}><FileText size={16} />PDF</button></div>} />
 
     <div className="report-filters">
+      {tab !== 'cidi' && <>
       <label>Período<select value={periodo} onChange={e => setPeriodo(e.target.value as Periodo)}>{PERIODOS.map(p => <option key={p}>{p}</option>)}</select></label>
       <label>{esPrec ? 'Curso' : 'Área'}<select value={alcance} onChange={e => setAlcance(e.target.value)}>{alcances.map(a => <option key={a}>{a}</option>)}</select></label>
+      </>}
       <div className="tabs" role="tablist" aria-label="Qué querés ver">
         <button role="tab" aria-selected={tab === 'resumen'} className={tab === 'resumen' ? 'on' : ''} onClick={() => setTab('resumen')}>Resumen</button>
         <button role="tab" aria-selected={tab === 'detalle'} className={tab === 'detalle' ? 'on' : ''} onClick={() => setTab('detalle')}>{esPrec ? 'Detalle por alumno' : 'Detalle por persona'}</button>
+        {!esPrec && <button role="tab" aria-selected={tab === 'cidi'} className={tab === 'cidi' ? 'on' : ''} onClick={() => setTab('cidi')}>Para CIDI</button>}
       </div>
     </div>
+    {tab === 'cidi' ? <CidiDemo onNotify={m => onNotify(m)} /> : <>
     <p className="rango-rep">Del {rango}{rep.personas.length ? ` · ${rep.personas.length} ${esPrec ? 'alumnos' : 'personas'}` : ''}</p>
 
     {rep.personas.length === 0 ? <div className="vacio panel"><FileText size={30} /><strong>No hay datos para esta selección</strong><p>Probá con otro período o con otra {esPrec ? 'curso' : 'área'}.</p></div> : tab === 'resumen' ? <>
@@ -118,6 +123,7 @@ export function ReportsView({ role, onNotify }: { role: Role; onNotify: (m?: str
         {rep.registros.length === 0 ? <p className="empty-state">No hubo novedades en este período.</p> : <div className="table-scroll"><table><thead><tr><th>FECHA</th><th>{esPrec ? 'ALUMNO' : 'PERSONA'}</th><th>TIPO</th><th>DETALLE</th></tr></thead><tbody>
           {rep.registros.map((r, i) => <tr key={i}><td>{fechaLegible(r.fecha)}</td><td><strong>{r.persona}</strong></td><td><StatusBadge tone={r.tipo === 'Tardanza' ? 'warning' : r.tipo === 'Ausencia justificada' ? 'success' : r.tipo.includes('pendiente') ? 'blue' : 'danger'}>{r.tipo}</StatusBadge></td><td className="muted-cell">{r.detalle}</td></tr>)}</tbody></table></div>}
       </section>
+    </>}
     </>}
   </>
 }

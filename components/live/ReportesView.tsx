@@ -1,18 +1,20 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { useLive } from './LiveContext'
 import { PageHeading, StatusBadge } from '../shared'
 import { calcularRanking, pctAsistenciaItem, pctPresenteItem, type ItemRanking } from '@/lib/ranking'
-import { novedadesRango } from '@/lib/repo'
+import { guardarDato, leerDato, novedadesRango } from '@/lib/repo'
 import { exportarExcel, exportarPDF } from '@/lib/export'
+import { FORMATO_INICIAL, viernesDe, type FormatoCidi, type SemanaCargada } from '@/lib/cidi'
+import { PanelCidi } from '../cidi'
 import {
   DIA_IDX, LABELS, LABELS_SHORT, TIPOS, contarDias, diasConHorario, esFaltaCualquiera, esFeriado, fechaDate, fmtFecha, hoyStr, nombreMostrar, pctTono,
   type Novedad,
 } from '@/lib/domain'
 
-type Vista = 'ranking' | 'tendencias' | 'exportar'
+type Vista = 'ranking' | 'tendencias' | 'exportar' | 'cidi'
 type PeriodoR = 'dia' | 'mes' | 'anio' | 'rango'
 type TabRank = 'ausentismo' | 'presentismo' | 'tipo'
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -25,11 +27,12 @@ export function ReportesView() {
   return <>
     <PageHeading eyebrow="INFORMACIÓN Y ANÁLISIS" title="Reportes de asistencia" description="Ranking de ausentismo, tendencias mensuales y exportación de datos." />
     <div className="report-filters"><div className="tabs" role="tablist" aria-label="Vista de reportes">
-      {([['ranking', 'Ranking'], ['tendencias', 'Tendencias'], ['exportar', 'Exportar']] as [Vista, string][]).map(([k, l]) => <button key={k} role="tab" aria-selected={vista === k} className={vista === k ? 'on' : ''} onClick={() => setVista(k)}>{l}</button>)}
+      {([['ranking', 'Ranking'], ['tendencias', 'Tendencias'], ['exportar', 'Exportar'], ['cidi', 'Para CIDI']] as [Vista, string][]).map(([k, l]) => <button key={k} role="tab" aria-selected={vista === k} className={vista === k ? 'on' : ''} onClick={() => setVista(k)}>{l}</button>)}
     </div></div>
     {vista === 'ranking' && <Ranking />}
     {vista === 'tendencias' && <Tendencias />}
     {vista === 'exportar' && <Exportar />}
+    {vista === 'cidi' && <ExportarCidi />}
   </>
 }
 
@@ -212,4 +215,23 @@ function Exportar() {
     {error && <p role="alert" className="form-error flow-error">{error}</p>}
     <p className="empty-state">Se exportan las novedades (faltas, licencias, etc.) del período elegido.</p>
   </section>
+}
+
+/** Exportación semanal de novedades para cargar en CIDI, con registro de las semanas ya cargadas (datos de Supabase). */
+function ExportarCidi() {
+  const { docentes, config, user, puedeEditar, notify } = useLive()
+  const [formato, setFormato] = useState<FormatoCidi | null>(null)
+  const [cargadas, setCargadas] = useState<SemanaCargada[]>([])
+  const [error, setError] = useState('')
+  useEffect(() => {
+    Promise.all([leerDato<FormatoCidi>('cidi_formato', FORMATO_INICIAL), leerDato<SemanaCargada[]>('cidi_semanas', [])])
+      .then(([f, c]) => { setFormato({ ...FORMATO_INICIAL, ...f }); setCargadas(c) })
+      .catch(e => setError((e as Error).message))
+  }, [])
+  const cargarNovedades = useCallback((lunes: string) => novedadesRango(lunes, viernesDe(lunes)), [])
+  if (error) return <p role="alert" className="form-error flow-error">{error}</p>
+  if (!formato) return <p className="empty-state">Cargando…</p>
+  return <PanelCidi personal={docentes} cargarNovedades={cargarNovedades} cicloInicio={config.cicloInicio} formato={formato} cargadas={cargadas}
+    guardarSemanas={async s => { await guardarDato('cidi_semanas', s); setCargadas(s) }} puedeMarcar={puedeEditar}
+    usuario={user?.nombre || user?.email || 'sin nombre'} notify={notify} />
 }

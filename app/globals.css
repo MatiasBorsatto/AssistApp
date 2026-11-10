@@ -625,7 +625,8 @@ button.role-card em{font-style:normal;font-size:11px;font-weight:600;color:#8f58
 .scanner.camara{background:#000}
 .camara-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .sc-texto.sobre-video{position:absolute;bottom:12px;left:0;right:0;padding:0 16px;text-shadow:0 1px 4px #000}
-.camara-cerrar{position:absolute;top:10px;right:10px;margin:0;width:auto;background:#fff;z-index:2}
+.camara-cerrar{position:absolute;top:10px;right:10px;margin:0;width:auto;z-index:2;background:#c62f2f;color:#fff;border:1px solid #c62f2f;font-weight:700;box-shadow:0 2px 8px #0005}
+.camara-cerrar:hover,.camara-cerrar:focus-visible{background:#a82424;border-color:#a82424;color:#fff}
 .camara-error{margin:0 21px 10px}
 .codigo-leido{margin:0 21px 10px;font-size:11px;color:#42526b;word-break:break-all}
 .codigo-leido code{font-size:11px;background:#f1f3f7;border-radius:6px;padding:1px 6px}
