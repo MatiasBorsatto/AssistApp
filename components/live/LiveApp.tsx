@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ClipboardCheck, GraduationCap, LogIn, Settings2, ShieldAlert, UserRound, UsersRound, FileText } from 'lucide-react'
 import { LiveProvider, useLive } from './LiveContext'
 import { AsistenciaView } from './AsistenciaView'
@@ -19,7 +19,8 @@ const ROL_LABEL = { admin: 'Administrador', directivo: 'Directivo', docente: 'Do
 
 export function LiveApp({ onExit }: { onExit: () => void }) {
   const [toast, setToast] = useState<string | null>(null)
-  const notify = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3500) }
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const notify = (m: string) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 3500) }
   return <LiveProvider notify={notify} onLogout={onExit}><LiveShell toast={toast} setToast={setToast} onExit={onExit} /></LiveProvider>
 }
 

@@ -332,7 +332,8 @@ button.role-card em{font-style:normal;font-size:11px;font-weight:600;color:#8f58
 @media(max-width:900px){.kpi-layout{grid-template-columns:1fr}}
 
 /* ───── Modo real (datos de Supabase) ───── */
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+/* !important: las reglas de formularios (width:100%) son más específicas y lo agrandaban, desbordando la pantalla en el celular */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .demo-bar{background:#fff1d6;color:#8f5800;border:1px solid #ecd29b;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:14px}
 .ciclo-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:14px}
 .ciclo-bar label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:600;color:#42526b}
@@ -404,6 +405,9 @@ button.role-card em{font-style:normal;font-size:11px;font-weight:600;color:#8f58
 /* Asistencia del día */
 .fecha-nav{display:flex;align-items:center;gap:10px;padding:10px 14px}
 .fecha-centro{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;flex-wrap:wrap}
+input[type=date]{cursor:pointer}
+input[type=date]::-webkit-calendar-picker-indicator{display:block;opacity:.75;cursor:pointer;width:16px;height:16px;margin-left:6px}
+input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .fecha-centro input[type=date]{border:1px solid #d5dde8;border-radius:8px;height:32px;padding:0 8px;font-size:12px}
 .feriado-banner{background:#fff1d6;border:1px solid #ecd29b;color:#5a3a00;border-radius:9px;padding:11px 14px;font-size:12px;margin-bottom:16px}
 .resumen-dia{grid-template-columns:1fr}

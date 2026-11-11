@@ -46,13 +46,16 @@ export function QrAcciones({ lugar, version, onNotify }: { lugar: string; versio
 
 /** Modo opcional: una tablet o pantalla en la puerta muestra un código que se renueva solo cada pocos segundos. Nada que imprimir. */
 export function PantallaIngreso({ lugar, segundos = 30, onClose }: { lugar: string; segundos?: number; onClose: () => void }) {
-  const [ciclo, setCiclo] = useState(1)
-  const [resta, setResta] = useState(segundos)
+  // El código se fija al empezar cada período (vence); la cuenta regresiva sólo actualiza el contador.
+  const [ahora, setAhora] = useState(() => Date.now())
+  const [vence, setVence] = useState(() => Date.now() + segundos * 1000)
   useEffect(() => {
-    const t = setInterval(() => setResta(r => { if (r <= 1) { setCiclo(c => c + 1); return segundos } return r - 1 }), 1000)
+    const t = setInterval(() => setAhora(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [segundos])
-  const texto = `ASISTAPP|${lugar.toUpperCase().replace(/\s+/g, '-')}|PANTALLA|${Date.now().toString(36).slice(-4)}${ciclo}`
+  }, [])
+  useEffect(() => { if (ahora >= vence) setVence(ahora + segundos * 1000) }, [ahora, vence, segundos])
+  const resta = Math.max(1, Math.round((vence - ahora) / 1000))
+  const texto = `ASISTAPP|${lugar.toUpperCase().replace(/\s+/g, '-')}|PANTALLA|${vence.toString(36).slice(-6)}`
   return (
     <div className="modal-backdrop kiosko" role="dialog" aria-modal="true" aria-label="Pantalla de ingreso">
       <div className="kiosko-card">

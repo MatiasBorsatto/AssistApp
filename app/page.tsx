@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Database } from 'lucide-react'
 import { Shell } from '@/components/Shell'
 import { LiveApp } from '@/components/live/LiveApp'
@@ -65,9 +65,12 @@ function Demo({ onExit }: { onExit: () => void }) {
   const [fichajes, setFichajes] = useState<Record<string, Fichaje>>({})
   const [cidi, setCidi] = useState<DemoBus['cidi']>({ formato: FORMATO_INICIAL, semanas: [] })
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const notify = (message?: string) => {
     setToast(typeof message === 'string' ? message : 'Los cambios se guardaron correctamente.')
-    setTimeout(() => setToast(null), 3500)
+    // Si llega otro aviso antes de que se cierre el anterior, se reinicia el tiempo.
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 3500)
   }
   const bus: DemoBus = {
     notifs, config, setConfig, fichajes, justificaciones: justifications, cidi, setCidi,

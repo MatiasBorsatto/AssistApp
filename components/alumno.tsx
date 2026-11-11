@@ -35,14 +35,14 @@ export function JustificarView({ onNotify }: { onNotify: (m?: string) => void })
     setErrores(e)
     if (Object.keys(e).length) return
     bus?.addJustification({ name: 'Tomás Ríos', initials: 'TR', desde, hasta, reason: m, origin: 'Alumno', ambito: 'alumno', curso: '4° B', comentario: comentario.trim() || undefined, imagen: adj.imagen, attachment: adj.imagen ? undefined : adj.nombre })
-    bus?.push({ para: ['Preceptor'], title: 'Nueva justificación de un alumno', msg: `Tomás Ríos (4° B) envió una justificación por "${m}": ${rangoCorto(desde, hasta)}.${adj.imagen ? ' Adjuntó una imagen.' : ''}`, tone: 'blue' })
+    bus?.push({ para: ['Preceptor'], title: 'Nueva justificación de un alumno', msg: `Tomás Ríos (4° B) envió una justificación por "${m}": ${rangoCorto(desde, hasta)}${adj.imagen ? ' Adjuntó una imagen.' : ''}`, tone: 'blue' })
     setEnviada({ desde, hasta }); onNotify(`Justificación enviada a ${PRECEPTORA}.`)
     setMotivo(''); setOtro(''); setComentario(''); setAdj({}); setDesde(hoy()); setHasta(hoy())
   }
 
   return <>
     <PageHeading eyebrow="MIS INASISTENCIAS" title="Justificar una inasistencia" description={`Contale a tu preceptora ${PRECEPTORA} por qué faltaste. Ella la revisa y te avisa si la aprueba.`} />
-    {enviada && <div className="aviso-exito" role="status"><CheckCircle2 size={22} /><div><strong>¡Enviada!</strong><span>{PRECEPTORA} ya recibió tu justificación del {rangoCorto(enviada.desde, enviada.hasta)}. Te avisamos acá apenas la revise.</span></div></div>}
+    {enviada && <div className="aviso-exito" role="status"><CheckCircle2 size={22} /><div><strong>¡Enviada!</strong><span>{PRECEPTORA} ya recibió tu justificación del {rangoCorto(enviada.desde, enviada.hasta)} Te avisamos acá apenas la revise.</span></div></div>}
     <div className="report-layout">
       <section className="panel report-form form-guiado"><div className="panel-header"><div><h2>Nueva justificación</h2><p>Son 3 pasos. Los campos con * son obligatorios.</p></div></div>
         <div className="paso"><span className="paso-n">1</span><div className="paso-c">

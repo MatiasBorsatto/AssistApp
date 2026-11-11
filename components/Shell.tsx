@@ -26,6 +26,15 @@ export function Shell({ rolLabel, userName, initials, schoolLabel = 'Escuela Mod
   useEffect(() => {
     try { setMostrarCasos(localStorage.getItem('asistapp-casos') !== 'off'); setAyudaCerrada(JSON.parse(localStorage.getItem('asistapp-ayuda') || '{}')) } catch { /* sin almacenamiento */ }
   }, [])
+  // Tocar cualquier parte de un campo de fecha abre el calendario, no sólo el ícono.
+  useEffect(() => {
+    const abrir = (e: MouseEvent) => {
+      const el = e.target as HTMLInputElement
+      if (el instanceof HTMLInputElement && el.type === 'date' && !el.disabled && !el.readOnly) { try { el.showPicker() } catch { /* navegador sin showPicker */ } }
+    }
+    document.addEventListener('click', abrir)
+    return () => document.removeEventListener('click', abrir)
+  }, [])
   const cambiarCasos = (v: boolean) => { setMostrarCasos(v); try { localStorage.setItem('asistapp-casos', v ? 'on' : 'off') } catch { /* sin almacenamiento */ } }
   const cerrarAyuda = (id: string) => { const n = { ...ayudaCerrada, [id]: true }; setAyudaCerrada(n); try { localStorage.setItem('asistapp-ayuda', JSON.stringify(n)) } catch { /* sin almacenamiento */ } }
   const unread = notifs ? notifs.filter(n => !n.read).length : 0

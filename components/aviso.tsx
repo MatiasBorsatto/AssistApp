@@ -33,7 +33,7 @@ export function EarlyNotice({ onNotify }: { onNotify: (m?: string) => void }) {
     setErrores(e)
     if (Object.keys(e).length) return
     bus?.addJustification({ name: 'María González', initials: 'MG', desde, hasta, reason: motivo, origin: 'Aviso temprano', ambito: 'personal', comentario: comentario.trim() || undefined, imagen: adj.imagen, attachment: adj.imagen ? undefined : adj.nombre })
-    bus?.push({ para: ['Administrador'], title: 'Nuevo aviso de inasistencia', msg: `María González avisó que no asistirá (${motivo}): ${rangoCorto(desde, hasta)}.`, tone: 'warning' })
+    bus?.push({ para: ['Administrador'], title: 'Nuevo aviso de inasistencia', msg: `María González avisó que no asistirá (${motivo}): ${rangoCorto(desde, hasta)}`, tone: 'warning' })
     onNotify('Aviso enviado a administración.')
     setEnviado(true); setMotivo(''); setComentario(''); setAdj({}); setDesde(hoy()); setHasta(hoy())
   }

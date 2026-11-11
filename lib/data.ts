@@ -75,16 +75,25 @@ export const courses: Record<string, { id: string; name: string; initials: strin
   ],
 }
 
+// Los datos de ejemplo usan los últimos días hábiles, así siempre se ven recientes y coinciden con el calendario.
+const habiles = (() => { const out: Date[] = []; const d = new Date(); while (out.length < 8) { d.setDate(d.getDate() - 1); if (d.getDay() % 6) out.push(new Date(d)) } return out })()
+const MES_CORTO = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.', 'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+const corta = (d: Date) => `${d.getDate()} ${MES_CORTO[d.getMonth()]} ${d.getFullYear()}`
+const larga = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })
+const haceDias = (d: Date) => { const n = Math.round((new Date().setHours(12) - new Date(d).setHours(12)) / 86400000); return n === 1 ? 'Ayer' : `Hace ${n} días` }
+
 export const personalHistory: HistoryRecord[] = [
-  { date: '24 oct. 2024', entry: '08:02', exit: '17:05', status: 'Presente', tone: 'success', note: '—' },
-  { date: '23 oct. 2024', entry: '08:16', exit: '17:00', status: 'Tardanza', tone: 'warning', note: 'Alerta de tardanza generada' },
-  { date: '22 oct. 2024', entry: '—', exit: '—', status: 'Ausente', tone: 'danger', note: 'Aviso temprano · Licencia médica' },
-  { date: '21 oct. 2024', entry: '07:58', exit: '17:10', status: 'Presente', tone: 'success', note: '—' },
-  { date: '18 oct. 2024', entry: '08:01', exit: '16:55', status: 'Presente', tone: 'success', note: '—' },
+  { date: corta(habiles[0]), entry: '08:02', exit: '17:05', status: 'Presente', tone: 'success', note: '—' },
+  { date: corta(habiles[1]), entry: '08:16', exit: '17:00', status: 'Tardanza', tone: 'warning', note: 'Alerta de tardanza generada' },
+  { date: corta(habiles[2]), entry: '—', exit: '—', status: 'Ausente', tone: 'danger', note: 'Aviso temprano · Licencia médica' },
+  { date: corta(habiles[3]), entry: '07:58', exit: '17:10', status: 'Presente', tone: 'success', note: '—' },
+  { date: corta(habiles[4]), entry: '08:01', exit: '16:55', status: 'Presente', tone: 'success', note: '—' },
 ]
 
 export const alumnoNotifications = [
-  { title: 'Inasistencia registrada', msg: 'Se registró tu inasistencia del 22 de octubre. Podés justificarla en preceptoría.', time: 'Hace 2 días', tone: 'warning' as Tone },
-  { title: 'Tardanza registrada', msg: 'Ingresaste a las 08:16 el 23 de octubre (tolerancia hasta las 08:10).', time: 'Hace 1 día', tone: 'warning' as Tone },
-  { title: 'Justificación aprobada', msg: 'Tu justificación del 10 de octubre fue aprobada.', time: '12 oct.', tone: 'success' as Tone },
+  { title: 'Inasistencia registrada', msg: `Se registró tu inasistencia del ${larga(habiles[2])}. Podés justificarla en preceptoría.`, time: haceDias(habiles[2]), tone: 'warning' as Tone },
+  { title: 'Tardanza registrada', msg: `Ingresaste a las 08:16 el ${larga(habiles[1])} (tolerancia hasta las 08:10).`, time: haceDias(habiles[1]), tone: 'warning' as Tone },
+  { title: 'Justificación aprobada', msg: `Tu justificación del ${larga(habiles[7])} fue aprobada.`, time: haceDias(habiles[6]), tone: 'success' as Tone },
 ]
+/** «noviembre de 2026» */
+export const mesActual = () => new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })

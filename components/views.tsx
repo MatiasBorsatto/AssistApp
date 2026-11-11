@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { Avatar, Kebab, PageHeading, StatCard, StatusBadge } from './shared'
 import {
-  alumnoNotifications, courses, personalHistory, type AppUser, type Justification, type Tone,
+  alumnoNotifications, courses, mesActual, personalHistory, type AppUser, type Justification, type Tone,
 } from '@/lib/data'
 import type { Role } from '@/lib/roles'
 import { useDemoBus } from '@/lib/demo-bus'
@@ -207,7 +207,7 @@ export function HistoryView({ role, onNotify }: { role: Role; onNotify: Notify }
   const presentes = personalHistory.filter(r => r.status === 'Presente').length
   return <>
     <PageHeading eyebrow="CONSULTA" title={title} description={personal ? 'Todas tus marcaciones, tardanzas e inasistencias.' : 'Consultá el historial de cualquier persona o el registro completo.'}
-      action={role === 'Alumno' ? <button className="button primary" onClick={() => { exportarPDF('Resumen de asistencias', 'Tomás Ríos · 4° B · octubre 2024', ['Fecha', 'Entrada', 'Salida', 'Estado', 'Observación'], personalHistory.map(r => [r.date, r.entry, r.exit, r.status, r.note]), 'resumen-asistencias'); onNotify('Resumen de asistencias descargado (resumen-asistencias.pdf).') }}><Download size={16} />Descargar resumen</button> : undefined} />
+      action={role === 'Alumno' ? <button className="button primary" onClick={() => { exportarPDF('Resumen de asistencias', `Tomás Ríos · 4° B · ${mesActual()}`, ['Fecha', 'Entrada', 'Salida', 'Estado', 'Observación'], personalHistory.map(r => [r.date, r.entry, r.exit, r.status, r.note]), 'resumen-asistencias'); onNotify('Resumen de asistencias descargado (resumen-asistencias.pdf).') }}><Download size={16} />Descargar resumen</button> : undefined} />
     {personal && <div className="mini-stats"><div><span>Presentes</span><strong className="green-text">{presentes}</strong><CheckCircle2 size={19} /></div><div><span>Tardanzas</span><strong className="amber-text">1</strong><Clock3 size={19} /></div><div><span>Inasistencias</span><strong className="red-text">1</strong><XCircle size={19} /></div></div>}
     <section className="panel table-panel">
       {!personal && <div className="toolbar">
@@ -290,7 +290,7 @@ export function UsersView({ users, onAdd, onUpdate, onDelete, onNotify }: {
     const initials = f.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
     onAdd({ id: `NU-${f.dni.slice(-5)}`, name: f.name.trim(), initials, role: f.role as AppUser['role'], area: f.area.trim(), email: f.email, active: true })
     setOpen(false); setF({ name: '', dni: '', email: '', role: 'Profesor', area: '' }); setErrors({})
-    onNotify(`${f.name.trim()} fue dado de alta tras validar sus datos.`)
+    onNotify(`Se dio de alta a ${f.name.trim()} tras validar sus datos.`)
   }
   const field = (k: keyof typeof f, label: string, ph: string) => <label>{label} *<input value={f[k]} aria-invalid={!!errors[k]} onChange={e => setF({ ...f, [k]: e.target.value })} placeholder={ph} />{errors[k] && <span role="alert" className="field-error">{errors[k]}</span>}</label>
 
@@ -301,7 +301,7 @@ export function UsersView({ users, onAdd, onUpdate, onDelete, onNotify }: {
         <TipoFilter value={tipo} onChange={setTipo} opciones={['Profesor', 'Preceptor', 'Alumno', 'Administrador']} roles={users.map(u => u.role)} /></div>
       <div className="table-scroll"><table><thead><tr><th>LEGAJO</th><th>USUARIO</th><th>ROL</th><th>ÁREA / CURSO</th><th>ESTADO</th><th></th></tr></thead><tbody>
         {!shown.length && <tr><td colSpan={6} className="empty-state">No hay personas que coincidan con el filtro.</td></tr>}
-        {shown.map(u => <tr key={u.id}><td className="muted-cell">{u.id}</td><td><div className="person-cell"><Avatar initials={u.initials} small /><div><strong>{u.name}</strong><span>{u.email}</span></div></div></td><td>{u.role}</td><td>{u.area}</td><td><StatusBadge tone={u.active ? 'success' : 'danger'}>{u.active ? 'Activo' : 'Inactivo'}</StatusBadge></td><td><RowMenu label={`Acciones de ${u.name}`} onDetail={() => setDetailU(u)} onEdit={() => startEditU(u)} onDelete={() => setDelU(u)} extra={{ label: u.active ? 'Desactivar' : 'Activar', onClick: () => { onUpdate(u.id, { active: !u.active }); onNotify(`${u.name} fue ${u.active ? 'desactivado' : 'activado'}.`) } }} /></td></tr>)}
+        {shown.map(u => <tr key={u.id}><td className="muted-cell">{u.id}</td><td><div className="person-cell"><Avatar initials={u.initials} small /><div><strong>{u.name}</strong><span>{u.email}</span></div></div></td><td>{u.role}</td><td>{u.area}</td><td><StatusBadge tone={u.active ? 'success' : 'danger'}>{u.active ? 'Activo' : 'Inactivo'}</StatusBadge></td><td><RowMenu label={`Acciones de ${u.name}`} onDetail={() => setDetailU(u)} onEdit={() => startEditU(u)} onDelete={() => setDelU(u)} extra={{ label: u.active ? 'Desactivar' : 'Activar', onClick: () => { onUpdate(u.id, { active: !u.active }); onNotify(`Se ${u.active ? 'desactivó' : 'activó'} a ${u.name}.`) } }} /></td></tr>)}
       </tbody></table></div>
     </section>
     {open && <div className="modal-backdrop" onClick={() => setOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-label="Nuevo usuario" onClick={e => e.stopPropagation()}>
@@ -336,7 +336,7 @@ export function UsersView({ users, onAdd, onUpdate, onDelete, onNotify }: {
     {delU && <div className="modal-backdrop" onClick={() => setDelU(null)}><div className="modal" role="alertdialog" aria-modal="true" aria-label="Eliminar usuario" onClick={e => e.stopPropagation()}>
       <div className="modal-header"><div><h2>Eliminar usuario</h2><p>Esta acción no se puede deshacer.</p></div><button className="icon-button" aria-label="Cerrar" onClick={() => setDelU(null)}><X size={18} /></button></div>
       <div className="modal-body"><p>¿Seguro que querés eliminar a <strong>{delU.name}</strong> ({delU.role})?</p></div>
-      <div className="modal-footer"><button className="button secondary" autoFocus onClick={() => setDelU(null)}>Cancelar</button><button className="button danger" onClick={() => { onDelete(delU.id); onNotify(`${delU.name} fue eliminado.`); setDelU(null) }}><Trash2 size={15} />Eliminar</button></div>
+      <div className="modal-footer"><button className="button secondary" autoFocus onClick={() => setDelU(null)}>Cancelar</button><button className="button danger" onClick={() => { onDelete(delU.id); onNotify(`Se eliminó a ${delU.name}.`); setDelU(null) }}><Trash2 size={15} />Eliminar</button></div>
     </div></div>}
   </>
 }
