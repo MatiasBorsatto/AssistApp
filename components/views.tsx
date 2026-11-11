@@ -44,22 +44,56 @@ export function AdminPanel({ justifications, onGo }: { justifications: Justifica
 type Mark = 'Presente' | 'Ausente' | 'Tardanza'
 const markTone: Record<Mark, Tone> = { Presente: 'success', Ausente: 'danger', Tardanza: 'warning' }
 
+/**
+ * Selector de estado con confirmación: la opción elegida no cuenta hasta tocar «Confirmar».
+ * Una vez confirmada queda fija y sólo se cambia tocando «Editar».
+ */
+function MarkPicker({ name, value, options, sugerido, onConfirm }: { name: string; value?: Mark; options: Mark[]; sugerido?: Mark; onConfirm: (m: Mark) => void }) {
+  const [editando, setEditando] = useState(!value)
+  const [draft, setDraft] = useState<Mark | undefined>(value ?? sugerido)
+  if (!editando && value) return <div className="mark-picker"><span className="mark-fijo"><Check size={13} />Confirmado</span>
+    <button className="mini-btn" onClick={() => { setDraft(value); setEditando(true) }} aria-label={`Editar el estado de ${name}`}><Pencil size={12} />Editar</button></div>
+  return <div className="mark-picker">
+    <div className="segmented" role="group" aria-label={`Estado de ${name}`}>{options.map(m => <button key={m} className={draft === m ? 'on' : ''} aria-pressed={draft === m} onClick={() => setDraft(m)}>{m}</button>)}</div>
+    <button className="mini-btn ok" disabled={!draft} onClick={() => { if (draft) { onConfirm(draft); setEditando(false) } }} aria-label={`Confirmar el estado de ${name}`}><Check size={12} />Confirmar</button>
+    {value && <button className="mini-btn" onClick={() => setEditando(false)} aria-label={`Cancelar la edición de ${name}`}><X size={12} />Cancelar</button>}
+  </div>
+}
+
+/** Aviso de cierre automático + estado del envío. */
+function EnvioAviso({ enviada, cambios, pendientes }: { enviada: string; cambios: boolean; pendientes: number }) {
+  return <p className="envio-aviso" role="status">
+    {enviada && !cambios ? <><CheckCircle2 size={15} />Asistencia enviada a las {enviada}. Si editás algún estado, tendrás que volver a enviarla.</>
+      : <><Clock3 size={15} />{pendientes ? `Faltan confirmar ${pendientes}. ` : ''}{enviada ? 'Hay cambios sin enviar. ' : ''}Si no la enviás, al finalizar el día (23:59) se registra automáticamente con los estados confirmados.</>}
+  </p>
+}
+const horaAhora = () => new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
 /** Preceptor: el caso de uso incluye «Validar curso y sección» antes de poder cargar asistencia. */
 export function PreceptorAttendance({ onNotify }: { onNotify: Notify }) {
   const bus = useDemoBus()
   const [course, setCourse] = useState('')
   const [validated, setValidated] = useState('')
   const [error, setError] = useState('')
+  /** Sólo los estados confirmados */
   const [marks, setMarks] = useState<Record<string, Mark>>({})
+  const [enviada, setEnviada] = useState('')
+  const [cambios, setCambios] = useState(false)
 
   const validate = () => {
     if (!course) { setError('Seleccioná un curso y sección para continuar.'); return }
     setError('')
     setValidated(course)
-    setMarks(Object.fromEntries(courses[course].map(s => [s.id, 'Presente' as Mark])))
+    setMarks({}); setEnviada(''); setCambios(false)
   }
   const students = validated ? courses[validated] : []
   const count = (m: Mark) => Object.values(marks).filter(v => v === m).length
+  const pendientes = students.filter(s => !marks[s.id]).length
+  const enviar = () => {
+    students.forEach(s => { const m = marks[s.id]; if (s.id === 'AL-04021' && (m === 'Ausente' || m === 'Tardanza')) bus?.push({ para: ['Alumno'], title: m === 'Ausente' ? 'Inasistencia registrada' : 'Tardanza registrada', msg: m === 'Ausente' ? 'Se registró tu inasistencia de hoy. Podés justificarla en preceptoría.' : 'Se registró tu llegada tarde de hoy.', tone: 'warning' }) })
+    setEnviada(horaAhora()); setCambios(false)
+    onNotify(`Asistencia de ${validated} enviada correctamente.`)
+  }
 
   return <>
     <PageHeading eyebrow="CONTROL DIARIO" title="Gestionar asistencia" description="Elegí el curso y sección, y registrá la asistencia del día." />
@@ -79,14 +113,12 @@ export function PreceptorAttendance({ onNotify }: { onNotify: Notify }) {
 
     <section className={`panel table-panel ${validated ? '' : 'disabled-panel'}`}>
       <div className="panel-header"><div><h2>2. Asistencia de {validated || 'curso'}</h2><p>{validated ? `${students.length} alumnos · ${count('Presente')} presentes · ${count('Ausente')} ausentes · ${count('Tardanza')} tardanzas` : 'Validá un curso para habilitar la carga'}</p></div>
-        <button className="button primary inline" disabled={!validated} onClick={() => {
-          students.forEach(s => { const m = marks[s.id]; if (s.id === 'AL-04021' && (m === 'Ausente' || m === 'Tardanza')) bus?.push({ para: ['Alumno'], title: m === 'Ausente' ? 'Inasistencia registrada' : 'Tardanza registrada', msg: m === 'Ausente' ? 'Se registró tu inasistencia de hoy. Podés justificarla en preceptoría.' : 'Se registró tu llegada tarde de hoy.', tone: 'warning' }) })
-          onNotify(`Asistencia de ${validated} guardada correctamente.`)
-        }}><Check size={16} />Guardar asistencia</button></div>
+        <button className="button primary inline" disabled={!validated || pendientes > 0 || (!!enviada && !cambios)} title={pendientes ? 'Confirmá el estado de todos los alumnos para poder enviarla' : undefined} onClick={enviar}><Send size={16} />{enviada && cambios ? 'Reenviar asistencia' : 'Enviar asistencia'}</button></div>
+      {validated && <EnvioAviso enviada={enviada} cambios={cambios} pendientes={pendientes} />}
       <div className="table-scroll"><table><thead><tr><th>ALUMNO</th><th>LEGAJO</th><th>ESTADO</th><th>MARCAR</th></tr></thead><tbody>
-        {students.map(s => <tr key={s.id}><td><div className="person-cell"><Avatar initials={s.initials} small /><strong>{s.name}</strong></div></td><td className="muted-cell">{s.id}</td>
-          <td><StatusBadge tone={markTone[marks[s.id] ?? 'Presente']}>{marks[s.id] ?? 'Presente'}</StatusBadge></td>
-          <td><div className="segmented" role="group" aria-label={`Estado de ${s.name}`}>{(['Presente', 'Tardanza', 'Ausente'] as Mark[]).map(m => <button key={m} className={marks[s.id] === m ? 'on' : ''} aria-pressed={marks[s.id] === m} onClick={() => setMarks(p => ({ ...p, [s.id]: m }))}>{m}</button>)}</div></td></tr>)}
+        {students.map(s => <tr key={`${validated}-${s.id}`}><td><div className="person-cell"><Avatar initials={s.initials} small /><strong>{s.name}</strong></div></td><td className="muted-cell">{s.id}</td>
+          <td>{marks[s.id] ? <StatusBadge tone={markTone[marks[s.id]]}>{marks[s.id]}</StatusBadge> : <span className="attach-chip pend-chip">Sin confirmar</span>}</td>
+          <td><MarkPicker name={s.name} value={marks[s.id]} sugerido="Presente" options={['Presente', 'Tardanza', 'Ausente']} onConfirm={m => { setMarks(p => ({ ...p, [s.id]: m })); setCambios(true) }} /></td></tr>)}
         {!validated && <tr><td colSpan={4} className="empty-state">Seleccioná y validá un curso para ver la nómina.</td></tr>}
       </tbody></table></div>
     </section>
@@ -102,6 +134,8 @@ export function AdminAttendance({ onNotify }: { onNotify: Notify }) {
     ana: { entry: '—', status: 'Ausente', legajo: 'AG-00141' }, laura: { entry: '07:50', status: 'Presente', legajo: 'PR-00012' }, sofia: { entry: '07:55', status: 'Presente', legajo: 'AD-00042' },
   }
   const [manual, setManual] = useState<Record<string, Mark>>({})
+  const [enviada, setEnviada] = useState('')
+  const [cambios, setCambios] = useState(false)
   const [q, setQ] = useState('')
   const rows = personal.map(p => {
     const b = base[p.id] ?? { entry: '—', status: 'Ausente' as Mark, legajo: p.id }
@@ -123,7 +157,9 @@ export function AdminAttendance({ onNotify }: { onNotify: Notify }) {
   }
   return <>
     <PageHeading eyebrow="CONTROL DIARIO" title="Asistencia de hoy" description="Revisá los fichajes del día y corregí el estado de cualquier persona tocando Presente, Tardanza o Ausente."
-      action={<div className="descargas"><span>Descargar el listado:</span><button className="button secondary" onClick={() => descargar('xlsx')}><FileSpreadsheet size={16} />Excel</button><button className="button secondary" onClick={() => descargar('pdf')}><FileText size={16} />PDF</button></div>} />
+      action={<div className="descargas"><span>Descargar el listado:</span><button className="button secondary" onClick={() => descargar('xlsx')}><FileSpreadsheet size={16} />Excel</button><button className="button secondary" onClick={() => descargar('pdf')}><FileText size={16} />PDF</button>
+        <button className="button primary" disabled={!!enviada && !cambios} onClick={() => { setEnviada(horaAhora()); setCambios(false); onNotify('Asistencia del día enviada y registrada.') }}><Send size={16} />{enviada && cambios ? 'Reenviar asistencia' : 'Enviar asistencia'}</button></div>} />
+    <EnvioAviso enviada={enviada} cambios={cambios} pendientes={0} />
     <section className="panel table-panel">
       <div className="toolbar"><div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o legajo..." aria-label="Buscar" /></div>
         <TipoFilter value={tipo} onChange={setTipo} opciones={['Profesor', 'Preceptor', 'Administrativo']} roles={rows.map(r => r.role)} /></div>
@@ -131,7 +167,7 @@ export function AdminAttendance({ onNotify }: { onNotify: Notify }) {
         {!shown.length && <tr><td colSpan={6} className="empty-state">No hay personas que coincidan con el filtro.</td></tr>}
         {shown.map(r => <tr key={r.id}><td><div className="person-cell"><Avatar initials={r.initials} small /><strong>{r.name}</strong></div></td><td className="muted-cell">{r.legajo}</td><td>{r.role}</td>
           <td>{r.entry}{r.porQr && <span className="attach-chip qr-chip">por QR</span>}{r.pendiente && <span className="attach-chip pend-chip">pendiente de validar</span>}</td><td><StatusBadge tone={markTone[r.status]}>{r.status}</StatusBadge></td>
-          <td>{r.pendiente && <button className="mini-btn ok confirmar" onClick={() => { const f = bus?.fichajes[r.id]; if (f) bus?.registrarFichaje({ ...f, pendiente: false }); onNotify(`Fichaje de ${r.name} confirmado.`) }}><Check size={12} /> Confirmar fichaje</button>}<div className="segmented">{((r.tardanza ? ['Presente', 'Tardanza', 'Ausente'] : ['Presente', 'Ausente']) as Mark[]).map(m => <button key={m} className={r.status === m ? 'on' : ''} aria-pressed={r.status === m} onClick={() => { setManual(p => ({ ...p, [r.id]: m })); onNotify(`Asistencia de ${r.name} actualizada a ${m}.`) }}>{m}</button>)}</div></td></tr>)}
+          <td>{r.pendiente && <button className="mini-btn ok confirmar" onClick={() => { const f = bus?.fichajes[r.id]; if (f) bus?.registrarFichaje({ ...f, pendiente: false }); onNotify(`Fichaje de ${r.name} confirmado.`) }}><Check size={12} /> Confirmar fichaje</button>}<MarkPicker name={r.name} value={r.status} options={r.tardanza ? ['Presente', 'Tardanza', 'Ausente'] : ['Presente', 'Ausente']} onConfirm={m => { setManual(p => ({ ...p, [r.id]: m })); setCambios(true); onNotify(`Asistencia de ${r.name} confirmada como ${m}.`) }} /></td></tr>)}
       </tbody></table></div>
     </section>
   </>
@@ -152,21 +188,31 @@ export function HistoryView({ role, onNotify }: { role: Role; onNotify: Notify }
   const fichajeHoy = role === 'Profesor' ? bus?.fichajes['maria'] : undefined
   const [who, setWho] = useState('Todos')
   const [estadoF, setEstadoF] = useState('')
-  const people = ['Todos', 'María González', 'Carlos Rodríguez', 'Ana Martínez', 'Tomás Ríos']
+  const [cursoF, setCursoF] = useState('')
+  const esPreceptor = role === 'Preceptor'
+  // El preceptor ve a los alumnos de sus cursos; el administrador, al personal.
+  const alumnos = Object.entries(courses).flatMap(([curso, l]) => l.map(a => ({ name: a.name, curso })))
+  const people = esPreceptor ? ['Todos', ...alumnos.filter(a => !cursoF || a.curso === cursoF).map(a => a.name)] : ['Todos', 'María González', 'Carlos Rodríguez', 'Ana Martínez', 'Tomás Ríos']
   const title = personal ? 'Mi historial de asistencia' : role === 'Preceptor' ? 'Historial personal y completo' : 'Historial de asistencia'
   const hoyTxt = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
   const base = fichajeHoy ? [{ date: `${hoyTxt} (hoy)`, entry: fichajeHoy.hora, exit: '—', status: fichajeHoy.estado, tone: (fichajeHoy.estado === 'Presente' ? 'success' : 'warning') as Tone, note: fichajeHoy.estado === 'Tardanza' ? `Tardanza de ${fichajeHoy.minutosTarde} min · fichaje por QR` : 'Fichaje por QR' }, ...personalHistory] : personalHistory
-  const all = base.map((r, i) => ({ ...r, who: people[1 + (i % 4)] }))
-  const rows = (personal ? all : all.filter(r => who === 'Todos' || r.who === who)).filter(r => !estadoF || r.status === estadoF)
+  const all = esPreceptor
+    ? alumnos.flatMap((a, j) => base.map((r, i) => ({ ...base[(i + j) % base.length], date: r.date, who: a.name, curso: a.curso })))
+    : base.map((r, i) => ({ ...r, who: people[1 + (i % 4)], curso: '' }))
+  const rows = (personal ? all : all.filter(r => (who === 'Todos' || r.who === who) && (!cursoF || r.curso === cursoF))).filter(r => !estadoF || r.status === estadoF)
   const presentes = personalHistory.filter(r => r.status === 'Presente').length
   return <>
     <PageHeading eyebrow="CONSULTA" title={title} description={personal ? 'Todas tus marcaciones, tardanzas e inasistencias.' : 'Consultá el historial de cualquier persona o el registro completo.'}
       action={role === 'Alumno' ? <button className="button primary" onClick={() => { exportarPDF('Resumen de asistencias', 'Tomás Ríos · 4° B · octubre 2024', ['Fecha', 'Entrada', 'Salida', 'Estado', 'Observación'], personalHistory.map(r => [r.date, r.entry, r.exit, r.status, r.note]), 'resumen-asistencias'); onNotify('Resumen de asistencias descargado (resumen-asistencias.pdf).') }}><Download size={16} />Descargar resumen</button> : undefined} />
     {personal && <div className="mini-stats"><div><span>Presentes</span><strong className="green-text">{presentes}</strong><CheckCircle2 size={19} /></div><div><span>Tardanzas</span><strong className="amber-text">1</strong><Clock3 size={19} /></div><div><span>Inasistencias</span><strong className="red-text">1</strong><XCircle size={19} /></div></div>}
     <section className="panel table-panel">
-      {!personal && <div className="toolbar"><label className="inline-select">Persona<select value={who} onChange={e => setWho(e.target.value)}>{people.map(p => <option key={p}>{p}</option>)}</select></label><label className="inline-select">Estado<select value={estadoF} onChange={e => setEstadoF(e.target.value)}><option value="">Todos</option><option>Presente</option><option>Tardanza</option><option>Ausente</option></select></label></div>}
-      <div className="table-scroll"><table><thead><tr>{!personal && <th>PERSONA</th>}<th>FECHA</th><th>ENTRADA</th><th>SALIDA</th><th>ESTADO</th><th>OBSERVACIÓN</th></tr></thead><tbody>
-        {rows.map((r, i) => <tr key={i}>{!personal && <td><strong>{r.who}</strong></td>}<td>{r.date}</td><td>{r.entry}</td><td>{r.exit}</td><td><StatusBadge tone={r.tone}>{r.status}</StatusBadge></td><td className="muted-cell">{r.note}</td></tr>)}
+      {!personal && <div className="toolbar">
+        {esPreceptor && <label className="inline-select">Curso<select value={cursoF} onChange={e => { const c = e.target.value; setCursoF(c); if (c && !alumnos.some(a => a.name === who && a.curso === c)) setWho('Todos') }}><option value="">Todos</option>{Object.keys(courses).map(c => <option key={c}>{c}</option>)}</select></label>}
+        <label className="inline-select">{esPreceptor ? 'Alumno' : 'Persona'}<select value={who} onChange={e => setWho(e.target.value)}>{people.map(p => <option key={p}>{p}</option>)}</select></label>
+        <label className="inline-select">Estado<select value={estadoF} onChange={e => setEstadoF(e.target.value)}><option value="">Todos</option><option>Presente</option><option>Tardanza</option><option>Ausente</option></select></label></div>}
+      <div className="table-scroll"><table><thead><tr>{!personal && <th>{esPreceptor ? 'ALUMNO' : 'PERSONA'}</th>}{esPreceptor && <th>CURSO</th>}<th>FECHA</th><th>ENTRADA</th><th>SALIDA</th><th>ESTADO</th><th>OBSERVACIÓN</th></tr></thead><tbody>
+        {!rows.length && <tr><td colSpan={7} className="empty-state">No hay registros que coincidan con los filtros.</td></tr>}
+        {rows.map((r, i) => <tr key={i}>{!personal && <td><strong>{r.who}</strong></td>}{esPreceptor && <td>{r.curso}</td>}<td>{r.date}</td><td>{r.entry}</td><td>{r.exit}</td><td><StatusBadge tone={r.tone}>{r.status}</StatusBadge></td><td className="muted-cell">{r.note}</td></tr>)}
       </tbody></table></div>
     </section>
   </>
