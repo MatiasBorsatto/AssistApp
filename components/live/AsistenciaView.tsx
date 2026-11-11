@@ -11,7 +11,7 @@ import { guardarNovedad, novedadesDocenteFecha } from '@/lib/repo'
 import { calcularAlertas } from '@/lib/alertas'
 import {
   DIA_IDX, DIAS_KEYS, LABELS, LABELS_SHORT, TIPOS, TIPO_TONO, calcDias, calcPct, diasConHorario, esAusencia, esFeriado,
-  esPresenteDia, esAdministrativo, fechaDate, fechaLarga, getTipoHs, hoyStr, hsDisplay, nombreMostrar, normalizarFranjas, pctTono, sumarDias, quitarTildes,
+  esPresenteDia, esAdministrativo, fechaDate, TIPOS_PERSONA, tipoPersona, fechaLarga, getTipoHs, hoyStr, hsDisplay, nombreMostrar, normalizarFranjas, pctTono, sumarDias, quitarTildes,
   type Nivel, type TipoNovedad,
 } from '@/lib/domain'
 
@@ -31,6 +31,7 @@ export function AsistenciaView() {
   const [estado, setEstado] = useState('')
   const [grupo, setGrupo] = useState('')
   const [area, setArea] = useState('')
+  const [tipo, setTipo] = useState('')
   const [soloHoy, setSoloHoy] = useState(true)
   const [badge, setBadge] = useState('')
   const [nov, setNov] = useState<DocenteDia | null>(null)
@@ -43,6 +44,7 @@ export function AsistenciaView() {
   const nombreFeriado = config.feriados.find(f => f.fecha === fecha)?.nombre || 'Feriado'
   const delNivel = useMemo(() => docentes.filter(d => !nivel || d.nivel === nivel), [docentes, nivel])
   const areas = useMemo(() => [...new Set(delNivel.map(d => d.area).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')), [delNivel])
+  const tiposPresentes = useMemo(() => TIPOS_PERSONA.filter(t => delNivel.some(d => tipoPersona(d) === t)), [delNivel])
 
   const debenVenir = useMemo(() => delNivel.filter(d => !d.jubilado && diasConHorario(d.horario).some(x => DIA_IDX[x] === dow)), [delNivel, dow])
   const resumen = useMemo(() => {
@@ -65,6 +67,7 @@ export function AsistenciaView() {
       if (estado && (estado === 'sin-registro' ? d.estadoHoy : d.estadoHoy !== estado)) return false
       if (grupo && !d.grupos.includes(grupo)) return false
       if (area && d.area !== area) return false
+      if (tipo && tipoPersona(d) !== tipo) return false
       if (soloHoy && !tiene && !badge) return false
       if (badge) {
         if (!tiene) return false
@@ -77,7 +80,7 @@ export function AsistenciaView() {
       }
       return true
     })
-  }, [delNivel, q, estado, grupo, area, soloHoy, badge, dow])
+  }, [delNivel, q, estado, grupo, area, tipo, soloHoy, badge, dow])
 
   const alertas = useMemo(() => puedeVerTodo ? calcularAlertas(docentes, novedadesAnio) : [], [puedeVerTodo, docentes, novedadesAnio])
 
@@ -147,8 +150,9 @@ export function AsistenciaView() {
         <label className="inline-select"><span className="sr-only">Estado</span><select value={estado} onChange={e => setEstado(e.target.value)} aria-label="Filtrar por estado"><option value="">Todos los estados</option><option value="sin-registro">Sin registro</option>{TIPOS.filter(t => t !== 'tardanza').map(t => <option key={t} value={t}>{t === 'injustificada' ? 'Inasist. Injustificada / Ausente' : LABELS[t]}</option>)}</select></label>
         {grupos.length > 0 && <label className="inline-select"><span className="sr-only">Grupo</span><select value={grupo} onChange={e => setGrupo(e.target.value)} aria-label="Filtrar por grupo"><option value="">Todos los grupos</option>{grupos.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}</select></label>}
         {areas.length > 0 && <label className="inline-select"><span className="sr-only">Área</span><select value={area} onChange={e => setArea(e.target.value)} aria-label="Filtrar por área"><option value="">Todas las áreas</option>{areas.map(a => <option key={a}>{a}</option>)}</select></label>}
+        {tiposPresentes.length > 1 && <label className="inline-select"><span className="sr-only">Tipo de persona</span><select value={tipo} onChange={e => setTipo(e.target.value)} aria-label="Filtrar por tipo de persona"><option value="">Todos los tipos</option>{tiposPresentes.map(t => <option key={t}>{t}</option>)}</select></label>}
         <label className="check-inline"><input type="checkbox" checked={soloHoy} onChange={e => setSoloHoy(e.target.checked)} /> Solo con horario este día</label>
-        <button className="filter-button" onClick={() => { setQ(''); setEstado(''); setGrupo(''); setArea(''); setBadge(''); setSoloHoy(true) }}><Filter size={15} />Limpiar</button>
+        <button className="filter-button" onClick={() => { setQ(''); setEstado(''); setGrupo(''); setArea(''); setTipo(''); setBadge(''); setSoloHoy(true) }}><Filter size={15} />Limpiar</button>
       </div>
       <div className="table-scroll"><table><thead><tr><th>DOCENTE</th><th>HORARIO DEL DÍA</th><th>HS SEM.</th><th>ESTADO</th><th>% MES</th><th>% AÑO</th><th>ACCIONES</th></tr></thead><tbody>
         {cargando && !docentes.length && <tr><td colSpan={7} className="empty-state">Cargando docentes…</td></tr>}

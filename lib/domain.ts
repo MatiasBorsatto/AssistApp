@@ -93,6 +93,17 @@ export const esAdministrativo = (d: { nivel?: string; cargo?: string }) => {
   const c = quitarTildes(d.cargo.toLowerCase())
   return !NO_ADMIN.some(k => c.includes(k)) && ['administrativ', 'secretari', 'biblioteca', 'bibliotecari', 'ayudante', 'auxiliar', 'maestranza', 'ordenanza'].some(k => c.includes(k))
 }
+export const TIPOS_PERSONA = ['Profesor', 'Preceptor', 'Directivo', 'Administrativo', 'Estudiante'] as const
+export type TipoPersona = (typeof TIPOS_PERSONA)[number]
+/** Tipo de persona deducido del cargo (no se guarda aparte): sirve para filtrar listados. */
+export const tipoPersona = (d: { nivel?: string; cargo?: string }): TipoPersona => {
+  if (d.nivel === 'estudiantes') return 'Estudiante'
+  const c = quitarTildes((d.cargo || '').toLowerCase())
+  if (c.includes('preceptor')) return 'Preceptor'
+  if (['director', 'vicedirector', 'coordinador', 'coordinadora', 'autoridad'].some(k => c.includes(k))) return 'Directivo'
+  if (esAdministrativo(d)) return 'Administrativo'
+  return 'Profesor'
+}
 /**
  * Estados que se pueden registrar según el perfil:
  *  - administrativos: sólo Presente y Ausente

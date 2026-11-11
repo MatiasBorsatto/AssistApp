@@ -109,28 +109,40 @@ export function AdminAttendance({ onNotify }: { onNotify: Notify }) {
     return { id: p.id, name: p.nombre, initials: p.iniciales, role: p.tipo === 'docente' ? 'Profesor' : p.tipo === 'preceptor' ? 'Preceptor' : 'Administrativo', legajo: b.legajo,
       entry: f ? f.hora : b.entry, status: manual[p.id] ?? (f ? (f.estado as Mark) : b.status), tardanza: aplicaTardanza(p.tipo), porQr: !!f, pendiente: !!f?.pendiente }
   })
-  const shown = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) || r.legajo.toLowerCase().includes(q.toLowerCase()))
+  const [tipo, setTipo] = useState('')
+  const porTipo = rows.filter(r => !tipo || r.role === tipo)
+  const shown = porTipo.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) || r.legajo.toLowerCase().includes(q.toLowerCase()))
   const hoyIso = new Date().toISOString().slice(0, 10)
   const descargar = (formato: 'xlsx' | 'pdf') => {
     const cols = ['Persona', 'Legajo', 'Rol', 'Cargo', 'Entrada', 'Estado', 'Cómo se registró']
-    const filas = rows.map(r => [r.name, r.legajo, r.role, personal.find(p => p.id === r.id)?.cargo ?? '', r.entry, r.status, r.porQr ? (r.pendiente ? 'Fichaje por QR (por confirmar)' : 'Fichaje por QR') : manual[r.id] ? 'Corregido a mano' : 'Registro del día'])
-    const nombre = `Asistencia_${hoyIso}`
+    const filas = porTipo.map(r => [r.name, r.legajo, r.role, personal.find(p => p.id === r.id)?.cargo ?? '', r.entry, r.status, r.porQr ? (r.pendiente ? 'Fichaje por QR (por confirmar)' : 'Fichaje por QR') : manual[r.id] ? 'Corregido a mano' : 'Registro del día'])
+    const nombre = `Asistencia_${tipo ? `${tipo}_` : ''}${hoyIso}`
     if (formato === 'xlsx') exportarExcelMulti([{ nombre: 'Asistencia del día', columnas: cols, filas }], nombre)
-    else exportarPDFMulti({ titulo: 'Asistencia del día', lineas: [`Fecha: ${new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`, `${rows.filter(r => r.status === 'Presente').length} presentes · ${rows.filter(r => r.status === 'Tardanza').length} con tardanza · ${rows.filter(r => r.status === 'Ausente').length} ausentes`], secciones: [{ titulo: 'Detalle por persona', columnas: cols, filas: filas.map(f => f.map(String)) }] }, nombre)
+    else exportarPDFMulti({ titulo: 'Asistencia del día', lineas: [`Fecha: ${new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`, ...(tipo ? [`Tipo de persona: ${tipo}`] : []), `${porTipo.filter(r => r.status === 'Presente').length} presentes · ${porTipo.filter(r => r.status === 'Tardanza').length} con tardanza · ${porTipo.filter(r => r.status === 'Ausente').length} ausentes`], secciones: [{ titulo: 'Detalle por persona', columnas: cols, filas: filas.map(f => f.map(String)) }] }, nombre)
     onNotify(`Listado descargado (${formato === 'xlsx' ? 'Excel' : 'PDF'}) con el nombre de cada persona.`)
   }
   return <>
     <PageHeading eyebrow="CONTROL DIARIO" title="Asistencia de hoy" description="Revisá los fichajes del día y corregí el estado de cualquier persona tocando Presente, Tardanza o Ausente."
       action={<div className="descargas"><span>Descargar el listado:</span><button className="button secondary" onClick={() => descargar('xlsx')}><FileSpreadsheet size={16} />Excel</button><button className="button secondary" onClick={() => descargar('pdf')}><FileText size={16} />PDF</button></div>} />
     <section className="panel table-panel">
-      <div className="toolbar"><div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o legajo..." aria-label="Buscar" /></div></div>
+      <div className="toolbar"><div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o legajo..." aria-label="Buscar" /></div>
+        <TipoFilter value={tipo} onChange={setTipo} opciones={['Profesor', 'Preceptor', 'Administrativo']} roles={rows.map(r => r.role)} /></div>
       <div className="table-scroll"><table><thead><tr><th>USUARIO</th><th>LEGAJO</th><th>ROL</th><th>ENTRADA</th><th>ESTADO</th><th>CORREGIR</th></tr></thead><tbody>
+        {!shown.length && <tr><td colSpan={6} className="empty-state">No hay personas que coincidan con el filtro.</td></tr>}
         {shown.map(r => <tr key={r.id}><td><div className="person-cell"><Avatar initials={r.initials} small /><strong>{r.name}</strong></div></td><td className="muted-cell">{r.legajo}</td><td>{r.role}</td>
           <td>{r.entry}{r.porQr && <span className="attach-chip qr-chip">por QR</span>}{r.pendiente && <span className="attach-chip pend-chip">pendiente de validar</span>}</td><td><StatusBadge tone={markTone[r.status]}>{r.status}</StatusBadge></td>
           <td>{r.pendiente && <button className="mini-btn ok confirmar" onClick={() => { const f = bus?.fichajes[r.id]; if (f) bus?.registrarFichaje({ ...f, pendiente: false }); onNotify(`Fichaje de ${r.name} confirmado.`) }}><Check size={12} /> Confirmar fichaje</button>}<div className="segmented">{((r.tardanza ? ['Presente', 'Tardanza', 'Ausente'] : ['Presente', 'Ausente']) as Mark[]).map(m => <button key={m} className={r.status === m ? 'on' : ''} aria-pressed={r.status === m} onClick={() => { setManual(p => ({ ...p, [r.id]: m })); onNotify(`Asistencia de ${r.name} actualizada a ${m}.`) }}>{m}</button>)}</div></td></tr>)}
       </tbody></table></div>
     </section>
   </>
+}
+
+/** Filtro por tipo de persona (profesor, preceptor, etc.), con la cantidad de cada uno. */
+function TipoFilter({ value, onChange, opciones, roles }: { value: string; onChange: (v: string) => void; opciones: string[]; roles: string[] }) {
+  return <label className="inline-select">Tipo<select value={value} onChange={e => onChange(e.target.value)}>
+    <option value="">Todos ({roles.length})</option>
+    {opciones.map(o => <option key={o} value={o}>{o} ({roles.filter(r => r === o).length})</option>)}
+  </select></label>
 }
 
 /* ───────────── Historial ───────────── */
@@ -209,7 +221,8 @@ export function UsersView({ users, onAdd, onUpdate, onDelete, onNotify }: {
   const [q, setQ] = useState('')
   const [f, setF] = useState({ name: '', dni: '', email: '', role: 'Profesor', area: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const shown = users.filter(u => u.name.toLowerCase().includes(q.toLowerCase()) || u.id.toLowerCase().includes(q.toLowerCase()))
+  const [tipo, setTipo] = useState('')
+  const shown = users.filter(u => (!tipo || u.role === tipo) && (u.name.toLowerCase().includes(q.toLowerCase()) || u.id.toLowerCase().includes(q.toLowerCase())))
 
   // Caso de uso incluido: «Validar datos de usuario»
   const validate = () => {
@@ -234,8 +247,10 @@ export function UsersView({ users, onAdd, onUpdate, onDelete, onNotify }: {
   return <>
     <PageHeading eyebrow="ADMINISTRACIÓN" title="Administrar usuarios" description="Alta, baja y modificación de profesores, preceptores y alumnos." action={<button className="button primary" onClick={() => setOpen(true)}><Plus size={17} />Nuevo usuario</button>} />
     <section className="panel table-panel">
-      <div className="toolbar"><div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o legajo..." aria-label="Buscar" /></div></div>
+      <div className="toolbar"><div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o legajo..." aria-label="Buscar" /></div>
+        <TipoFilter value={tipo} onChange={setTipo} opciones={['Profesor', 'Preceptor', 'Alumno', 'Administrador']} roles={users.map(u => u.role)} /></div>
       <div className="table-scroll"><table><thead><tr><th>LEGAJO</th><th>USUARIO</th><th>ROL</th><th>ÁREA / CURSO</th><th>ESTADO</th><th></th></tr></thead><tbody>
+        {!shown.length && <tr><td colSpan={6} className="empty-state">No hay personas que coincidan con el filtro.</td></tr>}
         {shown.map(u => <tr key={u.id}><td className="muted-cell">{u.id}</td><td><div className="person-cell"><Avatar initials={u.initials} small /><div><strong>{u.name}</strong><span>{u.email}</span></div></div></td><td>{u.role}</td><td>{u.area}</td><td><StatusBadge tone={u.active ? 'success' : 'danger'}>{u.active ? 'Activo' : 'Inactivo'}</StatusBadge></td><td><RowMenu label={`Acciones de ${u.name}`} onDetail={() => setDetailU(u)} onEdit={() => startEditU(u)} onDelete={() => setDelU(u)} extra={{ label: u.active ? 'Desactivar' : 'Activar', onClick: () => { onUpdate(u.id, { active: !u.active }); onNotify(`${u.name} fue ${u.active ? 'desactivado' : 'activado'}.`) } }} /></td></tr>)}
       </tbody></table></div>
     </section>

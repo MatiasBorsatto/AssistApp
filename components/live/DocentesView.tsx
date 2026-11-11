@@ -10,7 +10,7 @@ import {
   softDeleteDocentes, type DatosDocente,
 } from '@/lib/repo'
 import {
-  DIA_ABREV, DIA_ORDEN, DIAS_KEYS, esCargoReloj, getTipoHs, hsCatedraSemanales, hsSemanales, minDia, nombreMostrar, normalizarFranjas, quitarTildes,
+  DIA_ABREV, DIA_ORDEN, DIAS_KEYS, TIPOS_PERSONA, esCargoReloj, getTipoHs, hsCatedraSemanales, hsSemanales, minDia, nombreMostrar, normalizarFranjas, quitarTildes, tipoPersona,
   type Docente, type DiaKey, type Franja, type Horario, type Nivel,
 } from '@/lib/domain'
 
@@ -23,6 +23,7 @@ export function DocentesView() {
   const [q, setQ] = useState('')
   const [nivel, setNivel] = useState<Nivel | ''>('')
   const [verJub, setVerJub] = useState(false)
+  const [tipo, setTipo] = useState('')
   const [edit, setEdit] = useState<Docente | 'nuevo' | null>(null)
   const [perfil, setPerfil] = useState<DocenteDia | null>(null)
   const [elim, setElim] = useState<DocenteDia[] | null>(null)
@@ -31,9 +32,10 @@ export function DocentesView() {
   const [copiar, setCopiar] = useState<DocenteDia | null>(null)
 
   const lista = useMemo(() => docentes.filter(d => {
-    if ((nivel && d.nivel !== nivel) || (verJub ? !d.jubilado : false)) return false
+    if ((nivel && d.nivel !== nivel) || (verJub ? !d.jubilado : false) || (tipo && tipoPersona(d) !== tipo)) return false
     return !q || quitarTildes(`${d.apellido} ${d.nombre} ${d.cargo}`.toLowerCase()).includes(quitarTildes(q.toLowerCase()))
-  }), [docentes, q, nivel, verJub])
+  }), [docentes, q, nivel, verJub, tipo])
+  const tiposPresentes = useMemo(() => TIPOS_PERSONA.filter(t => docentes.some(d => tipoPersona(d) === t)), [docentes])
 
   const quien = user?.email || 'admin'
   const confirmarEliminar = async () => {
@@ -58,6 +60,7 @@ export function DocentesView() {
       <div className="toolbar">
         <div className="table-search"><Search size={17} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar por nombre o cargo..." aria-label="Buscar docente" /></div>
         <label className="inline-select"><span className="sr-only">Nivel</span><select value={nivel} onChange={e => setNivel(e.target.value as Nivel | '')} aria-label="Filtrar por nivel"><option value="">Todos los niveles</option>{NIVELES.map(n => <option key={n.v} value={n.v}>{n.l}</option>)}</select></label>
+        <label className="inline-select"><span className="sr-only">Tipo de persona</span><select value={tipo} onChange={e => setTipo(e.target.value)} aria-label="Filtrar por tipo de persona"><option value="">Todos los tipos</option>{tiposPresentes.map(t => <option key={t} value={t}>{t} ({docentes.filter(d => tipoPersona(d) === t).length})</option>)}</select></label>
         <label className="check-inline"><input type="checkbox" checked={verJub} onChange={e => setVerJub(e.target.checked)} /> Solo jubilados</label>
       </div>
       <div className="table-scroll"><table><thead><tr><th>DOCENTE</th><th>NIVEL</th><th>ÁREA</th><th>HORAS</th><th>DÍAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>
