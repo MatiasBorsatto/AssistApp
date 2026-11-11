@@ -188,18 +188,22 @@ export function HistoryView({ role, onNotify }: { role: Role; onNotify: Notify }
   const fichajeHoy = role === 'Profesor' ? bus?.fichajes['maria'] : undefined
   const [who, setWho] = useState('Todos')
   const [estadoF, setEstadoF] = useState('')
-  const [cursoF, setCursoF] = useState('')
+  /** Curso (preceptor) o cargo (administrador) */
+  const [grupoF, setGrupoF] = useState('')
   const esPreceptor = role === 'Preceptor'
-  // El preceptor ve a los alumnos de sus cursos; el administrador, al personal.
-  const alumnos = Object.entries(courses).flatMap(([curso, l]) => l.map(a => ({ name: a.name, curso })))
-  const people = esPreceptor ? ['Todos', ...alumnos.filter(a => !cursoF || a.curso === cursoF).map(a => a.name)] : ['Todos', 'María González', 'Carlos Rodríguez', 'Ana Martínez', 'Tomás Ríos']
+  const grupoLabel = esPreceptor ? 'Curso' : 'Cargo'
+  // El preceptor ve a los alumnos de sus cursos; el administrador, al personal y a los alumnos.
+  const alumnos = Object.entries(courses).flatMap(([curso, l]) => l.map(a => ({ name: a.name, grupo: curso })))
+  const cargoDe = { docente: 'Profesor', preceptor: 'Preceptor', administrativo: 'Administrativo' } as Record<string, string>
+  const sujetos = esPreceptor ? alumnos : [...(bus?.config ?? CONFIG_INICIAL).personal.map(p => ({ name: p.nombre, grupo: cargoDe[p.tipo] ?? 'Personal' })), ...alumnos.map(a => ({ name: a.name, grupo: 'Alumno' }))]
+  const grupos = [...new Set(sujetos.map(s => s.grupo))]
+  const people = ['Todos', ...sujetos.filter(s => !grupoF || s.grupo === grupoF).map(s => s.name)]
   const title = personal ? 'Mi historial de asistencia' : role === 'Preceptor' ? 'Historial personal y completo' : 'Historial de asistencia'
   const hoyTxt = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
   const base = fichajeHoy ? [{ date: `${hoyTxt} (hoy)`, entry: fichajeHoy.hora, exit: '—', status: fichajeHoy.estado, tone: (fichajeHoy.estado === 'Presente' ? 'success' : 'warning') as Tone, note: fichajeHoy.estado === 'Tardanza' ? `Tardanza de ${fichajeHoy.minutosTarde} min · fichaje por QR` : 'Fichaje por QR' }, ...personalHistory] : personalHistory
-  const all = esPreceptor
-    ? alumnos.flatMap((a, j) => base.map((r, i) => ({ ...base[(i + j) % base.length], date: r.date, who: a.name, curso: a.curso })))
-    : base.map((r, i) => ({ ...r, who: people[1 + (i % 4)], curso: '' }))
-  const rows = (personal ? all : all.filter(r => (who === 'Todos' || r.who === who) && (!cursoF || r.curso === cursoF))).filter(r => !estadoF || r.status === estadoF)
+  const all = personal ? base.map(r => ({ ...r, who: '', grupo: '' }))
+    : sujetos.flatMap((s, j) => base.map((r, i) => ({ ...base[(i + j) % base.length], date: r.date, who: s.name, grupo: s.grupo })))
+  const rows = all.filter(r => personal || ((who === 'Todos' || r.who === who) && (!grupoF || r.grupo === grupoF))).filter(r => !estadoF || r.status === estadoF)
   const presentes = personalHistory.filter(r => r.status === 'Presente').length
   return <>
     <PageHeading eyebrow="CONSULTA" title={title} description={personal ? 'Todas tus marcaciones, tardanzas e inasistencias.' : 'Consultá el historial de cualquier persona o el registro completo.'}
@@ -207,12 +211,12 @@ export function HistoryView({ role, onNotify }: { role: Role; onNotify: Notify }
     {personal && <div className="mini-stats"><div><span>Presentes</span><strong className="green-text">{presentes}</strong><CheckCircle2 size={19} /></div><div><span>Tardanzas</span><strong className="amber-text">1</strong><Clock3 size={19} /></div><div><span>Inasistencias</span><strong className="red-text">1</strong><XCircle size={19} /></div></div>}
     <section className="panel table-panel">
       {!personal && <div className="toolbar">
-        {esPreceptor && <label className="inline-select">Curso<select value={cursoF} onChange={e => { const c = e.target.value; setCursoF(c); if (c && !alumnos.some(a => a.name === who && a.curso === c)) setWho('Todos') }}><option value="">Todos</option>{Object.keys(courses).map(c => <option key={c}>{c}</option>)}</select></label>}
+        <label className="inline-select">{grupoLabel}<select value={grupoF} onChange={e => { const g = e.target.value; setGrupoF(g); if (g && !sujetos.some(s => s.name === who && s.grupo === g)) setWho('Todos') }}><option value="">Todos</option>{grupos.map(g => <option key={g}>{g}</option>)}</select></label>
         <label className="inline-select">{esPreceptor ? 'Alumno' : 'Persona'}<select value={who} onChange={e => setWho(e.target.value)}>{people.map(p => <option key={p}>{p}</option>)}</select></label>
         <label className="inline-select">Estado<select value={estadoF} onChange={e => setEstadoF(e.target.value)}><option value="">Todos</option><option>Presente</option><option>Tardanza</option><option>Ausente</option></select></label></div>}
-      <div className="table-scroll"><table><thead><tr>{!personal && <th>{esPreceptor ? 'ALUMNO' : 'PERSONA'}</th>}{esPreceptor && <th>CURSO</th>}<th>FECHA</th><th>ENTRADA</th><th>SALIDA</th><th>ESTADO</th><th>OBSERVACIÓN</th></tr></thead><tbody>
+      <div className="table-scroll"><table><thead><tr>{!personal && <><th>{esPreceptor ? 'ALUMNO' : 'PERSONA'}</th><th>{grupoLabel.toUpperCase()}</th></>}<th>FECHA</th><th>ENTRADA</th><th>SALIDA</th><th>ESTADO</th><th>OBSERVACIÓN</th></tr></thead><tbody>
         {!rows.length && <tr><td colSpan={7} className="empty-state">No hay registros que coincidan con los filtros.</td></tr>}
-        {rows.map((r, i) => <tr key={i}>{!personal && <td><strong>{r.who}</strong></td>}{esPreceptor && <td>{r.curso}</td>}<td>{r.date}</td><td>{r.entry}</td><td>{r.exit}</td><td><StatusBadge tone={r.tone}>{r.status}</StatusBadge></td><td className="muted-cell">{r.note}</td></tr>)}
+        {rows.map((r, i) => <tr key={i}>{!personal && <><td><strong>{r.who}</strong></td><td>{r.grupo}</td></>}<td>{r.date}</td><td>{r.entry}</td><td>{r.exit}</td><td><StatusBadge tone={r.tone}>{r.status}</StatusBadge></td><td className="muted-cell">{r.note}</td></tr>)}
       </tbody></table></div>
     </section>
   </>
