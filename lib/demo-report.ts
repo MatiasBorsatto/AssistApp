@@ -47,7 +47,7 @@ function sujetos(role: Role, config: ConfigDemo, justs: Justification[], alcance
   }
   const base: Sujeto[] = config.personal
     .filter(p => alcance === 'Toda la institución' || p.cargo.includes(alcance))
-    .map(p => ({ id: p.id, nombre: p.nombre, rol: TIPO_LABEL[p.tipo], cargo: p.cargo, trabaja: iso => { const d = DIA_ID[f(iso).getDay()]; return !!d && franjasDelDia(config, p, d).length > 0 }, tardanza: aplicaTardanza(p.tipo) }))
+    .map(p => ({ id: p.id, nombre: p.nombre, rol: TIPO_LABEL[p.tipo], cargo: p.cargo, trabaja: iso => { const d = DIA_ID[f(iso).getDay()]; return !!d && franjasDelDia(config, p, d, iso).length > 0 }, tardanza: aplicaTardanza(p.tipo) }))
   // Personas que tienen justificaciones pero no figuran en la lista de personal (se muestran igual, con su nombre)
   if (alcance === 'Toda la institución') {
     const nombres = new Set(base.map(b => b.nombre))

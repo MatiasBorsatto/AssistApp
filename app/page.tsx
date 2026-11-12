@@ -14,7 +14,7 @@ import { InicioView } from '@/components/inicio'
 import { tipoDia, type Evento } from '@/lib/calendario'
 import { FicharView } from '@/components/fichar'
 import { ConfigDemoView } from '@/components/config-demo'
-import { CONFIG_INICIAL, DIAS, franjasDelDia, type ConfigDemo, type Fichaje } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, etiquetaPeriodo, franjasDelDia, type ConfigDemo, type Fichaje } from '@/lib/fichaje'
 import { initialJustifications, initialUsers, type AppUser, type Justification } from '@/lib/data'
 import { roleOrder, roles, type Role, type ViewId } from '@/lib/roles'
 import { getSupabase, supabaseConfigurado } from '@/lib/supabase'
@@ -102,7 +102,7 @@ function Demo({ onExit }: { onExit: () => void }) {
     detalle: `${role === 'Administrador' || role === 'Preceptor' ? j.reason + ' · ' : ''}${j.status === 'Pendiente' ? 'Para revisar' : 'Aprobada'}`,
   }))
   const maria = config.personal.find(x => x.id === 'maria')!
-  const clasesDelDia = (iso: string) => { const w = new Date(iso + 'T12:00:00').getDay(); if (w < 1 || w > 5 || tipoDia(config, iso).tipo !== 'clase') return []; return franjasDelDia(config, maria, DIAS[w - 1].id).map(c => `${c.entrada} a ${c.salida} · ${c.materia}`) }
+  const clasesDelDia = (iso: string) => { const w = new Date(iso + 'T12:00:00').getDay(); if (w < 1 || w > 5 || tipoDia(config, iso).tipo !== 'clase') return []; return franjasDelDia(config, maria, DIAS[w - 1].id, iso).map(c => `${c.entrada} a ${c.salida} · ${c.materia}${etiquetaPeriodo(c) ? ` (${etiquetaPeriodo(c)})` : ''}`) }
 
   const body = () => {
     switch (current.id) {

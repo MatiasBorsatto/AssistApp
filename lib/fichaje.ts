@@ -9,8 +9,13 @@ export const DIAS: { id: DiaSemana; nombre: string; corto: string }[] = [
   { id: 'viernes', nombre: 'Viernes', corto: 'Vie' },
 ]
 export type Franja = { entrada: string; salida: string }
-/** Una clase de un docente: va, la da y se va. */
-export type Clase = Franja & { materia: string }
+/** Duración de una materia: todo el ciclo lectivo o sólo uno de los dos cuatrimestres. */
+export type Periodo = 'anual' | 'c1' | 'c2'
+export const PERIODOS: { id: Periodo; nombre: string; corto: string }[] = [
+  { id: 'anual', nombre: 'Anual', corto: 'Anual' }, { id: 'c1', nombre: '1° cuatrimestre', corto: '1° C' }, { id: 'c2', nombre: '2° cuatrimestre', corto: '2° C' },
+]
+/** Una clase de un docente: va, la da y se va. Si no indica período, es anual. */
+export type Clase = Franja & { materia: string; periodo?: Periodo }
 export type HorarioPersona = Partial<Record<DiaSemana, Franja>>
 export type TipoPersonal = 'docente' | 'preceptor' | 'administrativo'
 
@@ -52,8 +57,8 @@ export type ConfigDemo = {
   reglas: ReglasFichaje
   horarios: Record<RolConHorario, HorarioPersona>
   personal: Persona[]
-  /** Ciclo lectivo: primer y último día de clases (AAAA-MM-DD) */
-  ciclo: { inicio: string; fin: string }
+  /** Ciclo lectivo: primer y último día de clases, y el día en que empieza el 2° cuatrimestre (AAAA-MM-DD) */
+  ciclo: { inicio: string; fin: string; segundoCuatrimestre: string }
   /** Feriados y recesos: esos días no hay clases */
   feriados: Feriado[]
 }
@@ -65,6 +70,11 @@ const MAT_LMV: Clase[] = [{ entrada: '08:00', salida: '09:20', materia: 'Matemá
 const MAT_MJ: Clase[] = [{ entrada: '10:00', salida: '11:20', materia: 'Matemática 4° B' }]
 const LEN: Clase[] = [{ entrada: '13:30', salida: '14:50', materia: 'Lengua 3° A' }, { entrada: '15:00', salida: '16:20', materia: 'Lengua 3° B' }]
 const BIO: Clase[] = [{ entrada: '08:00', salida: '09:20', materia: 'Biología 4° A' }, { entrada: '10:00', salida: '11:20', materia: 'Biología 5° A' }]
+// Materias cuatrimestrales: el mismo horario lo ocupa una materia en el 1° cuatrimestre y otra en el 2°.
+const TALLER: Clase[] = [
+  { entrada: '13:30', salida: '14:50', materia: 'Taller de Estadística 6° A', periodo: 'c1' },
+  { entrada: '13:30', salida: '14:50', materia: 'Taller de Programación 6° A', periodo: 'c2' },
+]
 
 /** Feriados de ejemplo de un año (fechas de 2026; en la versión real se cargan cada año). */
 function feriadosEjemplo(y: number): Feriado[] {
@@ -78,7 +88,7 @@ function feriadosEjemplo(y: number): Feriado[] {
 const ANIO = new Date().getFullYear()
 
 export const CONFIG_INICIAL: ConfigDemo = {
-  ciclo: { inicio: `${ANIO}-03-02`, fin: `${ANIO}-12-18` },
+  ciclo: { inicio: `${ANIO}-03-02`, fin: `${ANIO}-12-18`, segundoCuatrimestre: `${ANIO}-08-03` },
   feriados: feriadosEjemplo(ANIO),
   reglas: { tolerancia: 10, minutosAntes: 10, minutosDespues: 120, lugar: 'Escuela Modelo', radio: 150, redes: ['ESCUELA-MODELO', 'ESCUELA-MODELO-5G'], modo: 'una', tiempoMaximo: 3, qrModo: 'fijo', qrVersion: 1, punto: null },
   horarios: {
@@ -86,7 +96,7 @@ export const CONFIG_INICIAL: ConfigDemo = {
     administrativo: semana('08:00', '16:00'),
   },
   personal: [
-    { id: 'maria', nombre: 'María González', iniciales: 'MG', cargo: 'Docente · Nivel Secundario', tipo: 'docente', clases: { lunes: MAT_LMV, miercoles: MAT_LMV, viernes: MAT_LMV, martes: MAT_MJ, jueves: MAT_MJ } },
+    { id: 'maria', nombre: 'María González', iniciales: 'MG', cargo: 'Docente · Nivel Secundario', tipo: 'docente', clases: { lunes: MAT_LMV, miercoles: MAT_LMV, viernes: MAT_LMV, martes: [...MAT_MJ, ...TALLER], jueves: [...MAT_MJ, ...TALLER] } },
     { id: 'carlos', nombre: 'Carlos Rodríguez', iniciales: 'CR', cargo: 'Docente · Nivel Primario', tipo: 'docente', clases: { lunes: LEN, miercoles: LEN, viernes: LEN } },
     { id: 'ana', nombre: 'Ana Martínez', iniciales: 'AM', cargo: 'Docente · Nivel Secundario', tipo: 'docente', clases: { martes: BIO, jueves: BIO } },
     { id: 'laura', nombre: 'Laura Benítez', iniciales: 'LB', cargo: 'Preceptora · 4° Año', tipo: 'preceptor' },
@@ -142,9 +152,16 @@ export type ResultadoFichaje = {
 /** vigente: el de la puerta · anterior: uno ya regenerado · foto: foto del código · otro: código de otro lugar */
 export type QrLeido = 'vigente' | 'anterior' | 'foto' | 'otro'
 
-/** Franjas del día de una persona: las clases del docente, o el horario fijo de su rol. */
-export function franjasDelDia(config: ConfigDemo, persona: Persona, dia: DiaSemana): Clase[] {
-  if (persona.tipo === 'docente') return [...(persona.clases?.[dia] ?? [])].sort((a, b) => a.entrada.localeCompare(b.entrada))
+/** Cuatrimestre al que pertenece una fecha del ciclo lectivo. */
+export const cuatrimestreDe = (config: ConfigDemo, iso: string): 'c1' | 'c2' => (iso < config.ciclo.segundoCuatrimestre ? 'c1' : 'c2')
+/** Una clase se dicta en esa fecha si es anual o si es del cuatrimestre en curso. */
+export const claseVigente = (config: ConfigDemo, c: Clase, iso: string) => !c.periodo || c.periodo === 'anual' || c.periodo === cuatrimestreDe(config, iso)
+export const etiquetaPeriodo = (c: Clase) => (c.periodo && c.periodo !== 'anual' ? PERIODOS.find(p => p.id === c.periodo)!.nombre : '')
+
+/** Franjas del día de una persona: las clases del docente, o el horario fijo de su rol.
+ *  Con una fecha, sólo se cuentan las clases anuales y las del cuatrimestre en curso. */
+export function franjasDelDia(config: ConfigDemo, persona: Persona, dia: DiaSemana, fecha?: string): Clase[] {
+  if (persona.tipo === 'docente') return (persona.clases?.[dia] ?? []).filter(c => !fecha || claseVigente(config, c, fecha)).sort((a, b) => a.entrada.localeCompare(b.entrada))
   const f = config.horarios[persona.tipo as RolConHorario]?.[dia]
   return f ? [{ ...f, materia: 'Jornada' }] : []
 }

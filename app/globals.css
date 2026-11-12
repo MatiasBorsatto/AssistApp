@@ -444,6 +444,8 @@ input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .franja-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .franja-row input[type=time]{width:110px!important;margin:0!important}
 .franja-row input[type=text]{flex:1;min-width:140px;margin:0!important}
+.franja-row select{width:auto!important;margin:0!important}
+.tag-periodo{margin-left:6px;font-size:10px;font-weight:700;color:#1d4ed8;background:#e3ecff;border-radius:6px;padding:1px 5px}
 .copiar-dias{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0}
 .hs-preview{margin:10px 0 0;font-size:12px;color:#42526b;padding:0!important}
 .grupo-chk{display:inline-flex!important;align-items:center;gap:6px;border:1px solid #d5dde8;border-radius:16px;padding:5px 10px!important;margin:0!important;font-size:11px!important}
@@ -843,6 +845,9 @@ label{font-size:13.5px}
 .dia.hoy.sel{box-shadow:0 0 0 3px #1f1300,0 0 0 6px #d98a0b66}
 .dia.vacio{border:0;background:transparent;cursor:default;min-height:0}
 .dnom{font-size:11px;line-height:1.2;color:#8f5800;font-weight:600}
+.dnom.corte{color:#1d4ed8}
+/* Primer día del 2° cuatrimestre: borde izquierdo azul, visible también en la vista de todo el ciclo */
+.dia.corte{border-left:4px solid #2f6fed}
 .ev{font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .ev.warning{background:#fff1d6;color:#7a4b00}.ev.success{background:#e6f5ee;color:#0d5a3a}.ev.blue{background:#eaf0f8;color:#2c3e5a}.ev.danger{background:#fdeeee;color:#8c2b2b}.ev.mas{background:#eef1f6;color:#42526b}
 .dia.feriado .ev.warning{background:#fff}
@@ -857,7 +862,7 @@ label{font-size:13.5px}
 .cal-leyenda{list-style:none;margin:14px 0 0;padding:12px 0 0;border-top:1px solid #f0f2f5;display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:#42526b}
 .cal-leyenda li{display:flex;gap:7px;align-items:center}
 .lg{width:16px;height:16px;border-radius:5px;border:1.5px solid #d5dde8;display:inline-block}
-.lg.clase{background:#fff}.lg.feriado{background:#fff1d6;border-color:#ecd29b}.lg.finde{background:#f6f8fb}.lg.fuera{background:repeating-linear-gradient(135deg,#f6f8fb,#f6f8fb 3px,#eef1f6 3px,#eef1f6 6px)}.lg.hoy{box-shadow:0 0 0 2px #1f1300;border-color:#fff}
+.lg.clase{background:#fff}.lg.feriado{background:#fff1d6;border-color:#ecd29b}.lg.finde{background:#f6f8fb}.lg.fuera{background:repeating-linear-gradient(135deg,#f6f8fb,#f6f8fb 3px,#eef1f6 3px,#eef1f6 6px)}.lg.hoy{box-shadow:0 0 0 2px #1f1300;border-color:#fff}.lg.corte{background:#fff;border-left:4px solid #2f6fed}
 .cal-detalle{position:sticky;top:90px}
 .cal-det-body{padding:0 21px 20px;display:flex;flex-direction:column;gap:16px}
 .cal-det-body h3{margin:0 0 8px;font-size:14px;color:#42526b;text-transform:uppercase;letter-spacing:.5px}

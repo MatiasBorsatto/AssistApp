@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowRight, CalendarDays, CheckCircle2, ClipboardCheck, Clock3, FileCheck2, FileText, History, Lightbulb, MailWarning, QrCode, Send, Settings2, X, XCircle } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { PageHeading, StatusBadge } from './shared'
-import { tipoDia } from '@/lib/calendario'
+import { aIso, tipoDia } from '@/lib/calendario'
 import { construirReporte } from '@/lib/demo-report'
 import { useDemoBus } from '@/lib/demo-bus'
-import { CONFIG_INICIAL, DIAS, franjasDelDia, type DiaSemana } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, etiquetaPeriodo, franjasDelDia, type DiaSemana } from '@/lib/fichaje'
 import { personalHistory } from '@/lib/data'
 import { rangoCorto } from '@/lib/fechas'
 import { roles, type Role, type ViewId } from '@/lib/roles'
@@ -84,7 +84,7 @@ export function InicioView({ role, go, sinLeer }: { role: Role; go: (id: ViewId)
         <Accion icono={QrCode} titulo="Fichar mi entrada" texto="Escaneá el código QR de la puerta." boton="Fichar" tono="verde" onClick={() => go('fichar')} />
       </div></>
   } else if (role === 'Profesor') {
-    const clases = franjasDelDia(config, maria, diaId)
+    const clases = franjasDelDia(config, maria, diaId, aIso(new Date()))
     const f = fichajes['maria']
     const avisos = justs.filter(j => j.name === 'María González' && j.origin === 'Aviso temprano')
     cuerpo = <>
@@ -95,7 +95,7 @@ export function InicioView({ role, go, sinLeer }: { role: Role; go: (id: ViewId)
         {!f && dia.tipo === 'clase' && <button className="button primary" onClick={() => go('registrar-qr')}><QrCode size={16} />Fichar entrada</button>}
       </section>
       <section className="panel inicio-hoy"><div className="panel-header"><div><h2>Tus clases de hoy</h2><p>{dia.tipo === 'clase' ? 'Según el horario cargado por administración' : estadoDia}</p></div></div>
-        {clases.length === 0 || dia.tipo !== 'clase' ? <p className="empty-state">{dia.tipo === 'clase' ? 'Hoy no tenés clases.' : 'Hoy no hay clases.'}</p> : <ul className="fich-lista">{clases.map(c => <li key={c.entrada}><strong>{c.materia}</strong><span>{c.entrada} a {c.salida}</span></li>)}</ul>}
+        {clases.length === 0 || dia.tipo !== 'clase' ? <p className="empty-state">{dia.tipo === 'clase' ? 'Hoy no tenés clases.' : 'Hoy no hay clases.'}</p> : <ul className="fich-lista">{clases.map(c => <li key={c.entrada}><strong>{c.materia}</strong><span>{c.entrada} a {c.salida}{etiquetaPeriodo(c) ? ` · ${etiquetaPeriodo(c)}` : ''}</span></li>)}</ul>}
       </section>
       <h2 className="inicio-h">¿Qué querés hacer?</h2>
       <div className="acciones">

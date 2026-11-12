@@ -15,6 +15,41 @@ Documento de trabajo del prototipo. El estado se marca con tres valores:
 | RF3 | Notificaciones automáticas al registrar un aviso temprano de inasistencia. | Parcial: alertas dentro de la aplicación (campanita). No hay notificación push ni WhatsApp. | `components/aviso.tsx`, `components/Shell.tsx`. |
 | RF4 | Módulo exclusivo para que el equipo directivo apruebe, rechace o justifique faltas y licencias. | Implementado. | Justificaciones (`components/justificaciones.tsx`). |
 | RF5 | Exportar reportes consolidados en Excel (.xlsx) y PDF para liquidación de haberes. | Implementado. Excel y PDF descargados y verificados (10/11/2026). | Reportes (`components/reportes.tsx`, `lib/export.ts`). |
+| RF6 | Materias cuatrimestrales: cada clase de un docente se marca como anual, del 1° o del 2° cuatrimestre, y la institución define el día en que empieza el 2° cuatrimestre. El sistema solo exige fichar y solo muestra en el calendario las clases del cuatrimestre en curso. | Implementado en el modo demostración (12/11/2026). En el modo real (Supabase) queda pendiente. | Configuración → Ciclo lectivo y Clases de los docentes (`components/config-demo.tsx`); reglas en `lib/fichaje.ts` (`cuatrimestreDe`, `claseVigente`, `franjasDelDia`); calendario (`components/calendario.tsx`). |
+
+### Detalle del RF6: materias cuatrimestrales
+
+**Problema.** Muchos profesores dictan materias que duran un solo cuatrimestre. Con un horario único para todo el año, el sistema les exigiría fichar en clases que ya terminaron o que todavía no empezaron, y los marcaría como ausentes.
+
+**Cómo se configura el horario.**
+
+1. En Configuración → Ciclo lectivo y feriados, el administrador carga el primer día de clases, el último y el **comienzo del 2° cuatrimestre**. Ese día tiene que estar dentro del ciclo lectivo.
+2. En Configuración → Clases de los docentes → Editar clases, cada clase tiene una **duración**: Anual, 1° cuatrimestre o 2° cuatrimestre. Las clases cargadas antes de este cambio se toman como anuales.
+3. Una materia del 1° cuatrimestre y otra del 2° pueden ocupar el mismo día y horario, porque nunca se dictan a la vez. Si ese horario lo ocupa una clase anual, o dos clases del mismo cuatrimestre, el sistema lo rechaza como superposición.
+4. En la tabla de clases, las cuatrimestrales llevan la etiqueta «1° C» o «2° C».
+
+**Qué hace el sistema con ese horario.** Para cada fecha se calculan las clases vigentes: las anuales más las del cuatrimestre al que pertenece esa fecha. Con esas clases:
+
+- se valida el fichaje (horario habilitado, tolerancia y tardanza);
+- se cuentan los días con clases en los reportes;
+- se muestran «Tus clases de hoy» en el inicio del profesor.
+
+**Cómo se ve en el calendario.**
+
+- El resumen del ciclo muestra la fecha de comienzo del 2° cuatrimestre.
+- Ese día se marca en la grilla con un borde azul y la leyenda «Inicio 2° C», que también figura en las referencias.
+- Al tocar un día, el detalle indica a qué cuatrimestre pertenece y lista solo las clases vigentes de ese día. Las cuatrimestrales llevan su cuatrimestre entre paréntesis.
+- Ejemplo de la demostración: la profesora María González tiene martes y jueves a las 13:30 el Taller de Estadística 6° A (1° cuatrimestre) y el Taller de Programación 6° A (2° cuatrimestre). En mayo el calendario muestra Estadística y en noviembre muestra Programación.
+
+**Criterios de aceptación (verificados en el navegador el 12/11/2026).**
+
+| Prueba | Resultado esperado | Resultado obtenido |
+|---|---|---|
+| Calendario, jueves 14 de mayo | «1° cuatrimestre», con Taller de Estadística | Correcto |
+| Calendario, jueves 12 de noviembre | «2° cuatrimestre», con Taller de Programación | Correcto |
+| Inicio del profesor (jueves de noviembre) | Solo las clases anuales y la del 2° cuatrimestre | Correcto |
+| Pasar a «Anual» el taller del 2° cuatrimestre | Error de superposición en el mismo período | Correcto |
+| Comienzo del 2° cuatrimestre fuera del ciclo | «Tiene que estar dentro del ciclo lectivo.» | Correcto |
 
 ## 2. Requisitos no funcionales (RNF)
 
@@ -48,6 +83,7 @@ Documento de trabajo del prototipo. El estado se marca con tres valores:
 | RF4, WCAG 3 | Validar justificaciones (aprobar / rechazar) | `justificaciones.tsx`, `alumno.tsx` | Implementado |
 | RF5 | Exportar reportes | `reportes.tsx`, `export.ts` | Implementado |
 | RF2 | Configurar horarios y ciclo | `config-demo.tsx`, modo real | Parcial |
+| RF6 | Configurar horarios y ciclo; Calendario del ciclo lectivo; Registrar asistencia QR | `config-demo.tsx`, `calendario.tsx`, `fichaje.ts` | Implementado (demostración) |
 | RNF3 | Acceso web | Toda la aplicación | Parcial |
 | RNF4 | Acceso seguro | Supabase, Netlify, `netlify.toml` | Parcial |
 

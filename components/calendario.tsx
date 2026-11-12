@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PageHeading } from './shared'
 import { aIso, eventosDelDia, resumenCiclo, semanasDelMes, tipoDia, type Evento, type TipoDia } from '@/lib/calendario'
-import type { ConfigDemo } from '@/lib/fichaje'
+import { PERIODOS, cuatrimestreDe, type ConfigDemo } from '@/lib/fichaje'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -34,6 +34,8 @@ export function CalendarioView({ config, eventos, titulo = 'Calendario del ciclo
   const info = tipoDia(config, sel)
   const delDia = eventosDelDia(eventos, sel)
   const extra = extraDia?.(sel) ?? []
+  const c2 = config.ciclo.segundoCuatrimestre
+  const cuatriSel = info.tipo !== 'fuera' ? PERIODOS.find(p => p.id === cuatrimestreDe(config, sel))!.nombre : ''
 
   // Meses que abarca el ciclo (para la vista completa)
   const meses = useMemo(() => {
@@ -46,10 +48,12 @@ export function CalendarioView({ config, eventos, titulo = 'Calendario del ciclo
   const celda = (iso: string, mini = false) => {
     const t = tipoDia(config, iso)
     const ev = eventosDelDia(eventos, iso)
-    return <button key={iso} type="button" className={`dia ${t.tipo} ${iso === hoy ? 'hoy' : ''} ${iso === sel ? 'sel' : ''} ${mini ? 'mini' : ''}`} onClick={() => { setSel(iso); if (mini) { const d = new Date(iso + 'T12:00:00'); setAnio(d.getFullYear()); setMes(d.getMonth()); setVista('mes') } }}
-      aria-label={`${larga(iso)}. ${NOMBRE_TIPO[t.tipo]}${t.nombre ? `: ${t.nombre}` : ''}${ev.length ? `. ${ev.length} ${ev.length === 1 ? 'evento' : 'eventos'}` : ''}`} aria-pressed={iso === sel}>
+    const corte = iso === c2
+    return <button key={iso} type="button" className={`dia ${t.tipo} ${iso === hoy ? 'hoy' : ''} ${iso === sel ? 'sel' : ''} ${mini ? 'mini' : ''} ${corte ? 'corte' : ''}`} onClick={() => { setSel(iso); if (mini) { const d = new Date(iso + 'T12:00:00'); setAnio(d.getFullYear()); setMes(d.getMonth()); setVista('mes') } }}
+      aria-label={`${larga(iso)}. ${NOMBRE_TIPO[t.tipo]}${t.nombre ? `: ${t.nombre}` : ''}${corte ? '. Comienza el 2° cuatrimestre' : ''}${ev.length ? `. ${ev.length} ${ev.length === 1 ? 'evento' : 'eventos'}` : ''}`} aria-pressed={iso === sel}>
       <span className="dn">{new Date(iso + 'T12:00:00').getDate()}</span>
       {!mini && t.nombre && <small className="dnom">{t.nombre}</small>}
+      {!mini && corte && <small className="dnom corte">Inicio 2° C</small>}
       {!mini && ev.slice(0, 2).map((e, i) => <span key={i} className={`ev ${e.tone}`}>{e.titulo}</span>)}
       {!mini && ev.length > 2 && <span className="ev mas">+{ev.length - 2} más</span>}
       {mini && ev.length > 0 && <i className="punto" />}
@@ -62,7 +66,7 @@ export function CalendarioView({ config, eventos, titulo = 'Calendario del ciclo
     <section className="panel ciclo-resumen" aria-label="Resumen del ciclo lectivo">
       <div><strong className="ciclo-num">{resumen.pasados}<small> de {resumen.total}</small></strong><span>días de clase transcurridos</span></div>
       <div className="ciclo-barra" role="progressbar" aria-valuenow={resumen.pct} aria-valuemin={0} aria-valuemax={100} aria-label="Avance del ciclo lectivo"><span style={{ width: `${resumen.pct}%` }} /></div>
-      <div className="ciclo-fechas"><span><b>Comienzo</b> {larga(config.ciclo.inicio).split(',').slice(1).join(',').trim()}</span><span><b>Fin</b> {larga(config.ciclo.fin).split(',').slice(1).join(',').trim()}</span><span><b>Quedan</b> {resumen.restantes} días de clase</span></div>
+      <div className="ciclo-fechas"><span><b>Comienzo</b> {larga(config.ciclo.inicio).split(',').slice(1).join(',').trim()}</span><span><b>2° cuatrimestre</b> desde el {larga(c2).split(',').slice(1).join(',').trim()}</span><span><b>Fin</b> {larga(config.ciclo.fin).split(',').slice(1).join(',').trim()}</span><span><b>Quedan</b> {resumen.restantes} días de clase</span></div>
     </section>
 
     <div className="cal-controles">
@@ -84,12 +88,12 @@ export function CalendarioView({ config, eventos, titulo = 'Calendario del ciclo
           {semanasDelMes(a, m).map((sem, i) => <div className="cal-sem" key={i}>{sem.map((iso, j) => iso ? celda(iso, true) : <span key={j} className="dia vacio mini" aria-hidden="true" />)}</div>)}
         </div>)}</div>}
         <ul className="cal-leyenda" aria-label="Referencias">
-          <li><i className="lg clase" />Día de clases</li><li><i className="lg feriado" />Feriado o receso</li><li><i className="lg finde" />Fin de semana</li><li><i className="lg fuera" />Fuera del ciclo</li><li><i className="lg hoy" />Hoy</li>
+          <li><i className="lg clase" />Día de clases</li><li><i className="lg feriado" />Feriado o receso</li><li><i className="lg finde" />Fin de semana</li><li><i className="lg fuera" />Fuera del ciclo</li><li><i className="lg hoy" />Hoy</li><li><i className="lg corte" />Inicio 2° cuatrimestre</li>
         </ul>
       </section>
 
       <aside className="panel cal-detalle" aria-live="polite" aria-label="Detalle del día elegido">
-        <div className="panel-header"><div><h2>{larga(sel)}</h2><p>{NOMBRE_TIPO[info.tipo]}{info.nombre ? ` · ${info.nombre}` : ''}</p></div><CalendarDays size={20} /></div>
+        <div className="panel-header"><div><h2>{larga(sel)}</h2><p>{NOMBRE_TIPO[info.tipo]}{info.nombre ? ` · ${info.nombre}` : ''}{cuatriSel ? ` · ${cuatriSel}` : ''}</p></div><CalendarDays size={20} /></div>
         <div className="cal-det-body">
           {extra.length > 0 && <div><h3>Tus clases</h3><ul className="cal-lista">{extra.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
           <div><h3>Ausencias y licencias</h3>{delDia.length === 0 ? <p className="muted-cell">No hay nada registrado este día.</p> : <ul className="cal-lista">{delDia.map((e, i) => <li key={i}><span className={`punto-ev ${e.tone}`} /><div><strong>{e.titulo}</strong>{e.detalle && <small>{e.detalle}</small>}</div></li>)}</ul>}</div>

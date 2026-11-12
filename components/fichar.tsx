@@ -6,6 +6,7 @@ import { PageHeading } from './shared'
 import { MENSAJE_CAMARA, VisorCamara, type ErrorCamara } from './camara'
 import { clasificarQr } from '@/lib/qr-scan'
 import { useDemoBus } from '@/lib/demo-bus'
+import { aIso } from '@/lib/calendario'
 import { CONFIG_INICIAL, DIAS, RNF1_SEGUNDOS, distanciaMetros, TIPO_LABEL, UBICACIONES, aplicaTardanza, evaluarFichaje, franjasDelDia, personaDePerfil, sumarMin, type DiaSemana, type Fichaje, type QrLeido, type RedSim, type ResultadoFichaje } from '@/lib/fichaje'
 import { encolar, leerCola, sincronizarCola, type FichajeEnCola } from '@/lib/cola-offline'
 import { MENSAJE_GPS, obtenerUbicacion, type ErrorGps, type Posicion } from '@/lib/geo'
@@ -28,7 +29,8 @@ export function FicharView({ role, onNotify }: { role: Role; onNotify: (m: strin
   const { reglas } = config
 
   const [dia, setDia] = useState<DiaSemana>(diaHoy())
-  const franjasDe = (d: DiaSemana) => franjasDelDia(config, persona, d)
+  // Se simula un día de esta semana: cuentan las clases anuales y las del cuatrimestre en curso.
+  const franjasDe = (d: DiaSemana) => franjasDelDia(config, persona, d, aIso(new Date()))
   const franjas = franjasDe(dia)
   const franja = franjas[0]
   const [hora, setHora] = useState(() => (franja ? sumarMin(franja.entrada, 2) : '08:00'))

@@ -6,7 +6,7 @@ import { Avatar, PageHeading, StatusBadge } from './shared'
 import { PantallaIngreso, QrAcciones, QrImagen, textoQrFijo } from './qr'
 import { useDemoBus } from '@/lib/demo-bus'
 import { MENSAJE_GPS, obtenerUbicacion, type ErrorGps } from '@/lib/geo'
-import { CONFIG_INICIAL, DIAS, TIPO_LABEL, aplicaTardanza, sumarMin, type Clase, type ConfigDemo, type DiaSemana, type HorarioPersona, type Persona, type RolConHorario } from '@/lib/fichaje'
+import { CONFIG_INICIAL, DIAS, PERIODOS, TIPO_LABEL, aplicaTardanza, sumarMin, type Clase, type ConfigDemo, type DiaSemana, type HorarioPersona, type Periodo, type Persona, type RolConHorario } from '@/lib/fichaje'
 
 const clon = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 const resumen = (h: HorarioPersona) => {
@@ -51,6 +51,8 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
     if (!draft.ciclo.inicio) e.cicloInicio = 'Indicá el primer día de clases.'
     if (!draft.ciclo.fin) e.cicloFin = 'Indicá el último día de clases.'
     else if (draft.ciclo.inicio && draft.ciclo.fin <= draft.ciclo.inicio) e.cicloFin = 'El último día debe ser posterior al primero.'
+    if (!draft.ciclo.segundoCuatrimestre) e.cicloC2 = 'Indicá cuándo empieza el 2° cuatrimestre.'
+    else if (draft.ciclo.segundoCuatrimestre <= draft.ciclo.inicio || draft.ciclo.segundoCuatrimestre > draft.ciclo.fin) e.cicloC2 = 'Tiene que estar dentro del ciclo lectivo.'
     if (!r.lugar.trim()) e.lugar = 'Indicá el nombre del lugar.'
     if (!(r.radio >= 20 && r.radio <= 2000)) e.radio = 'Ingresá un radio de 20 a 2000 metros.'
     if (!r.redes.length) e.redes = 'Agregá al menos una red Wi-Fi autorizada.'
@@ -111,9 +113,10 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
 
     <section className="panel cfg-sec"><div className="panel-header"><div><h2>Ciclo lectivo y feriados</h2><p>Define el calendario que ven todos: qué días hay clases y cuáles no.</p></div></div>
       <div className="cfg-body">
-        <div className="cfg-grid two">
+        <div className="cfg-grid">
           <label className="cfg-field">Primer día de clases<input type="date" value={draft.ciclo.inicio} aria-invalid={!!errores.cicloInicio} onChange={e => { setDraft(d => ({ ...d, ciclo: { ...d.ciclo, inicio: e.target.value } })); setErrores({}) }} />{errores.cicloInicio && <span role="alert" className="field-error">{errores.cicloInicio}</span>}</label>
           <label className="cfg-field">Último día de clases<input type="date" value={draft.ciclo.fin} aria-invalid={!!errores.cicloFin} onChange={e => { setDraft(d => ({ ...d, ciclo: { ...d.ciclo, fin: e.target.value } })); setErrores({}) }} />{errores.cicloFin && <span role="alert" className="field-error">{errores.cicloFin}</span>}</label>
+          <label className="cfg-field">Comienzo del 2° cuatrimestre<input type="date" value={draft.ciclo.segundoCuatrimestre} min={draft.ciclo.inicio} max={draft.ciclo.fin} aria-invalid={!!errores.cicloC2} onChange={e => { setDraft(d => ({ ...d, ciclo: { ...d.ciclo, segundoCuatrimestre: e.target.value } })); setErrores({}) }} /><small>Desde ese día las materias del 1° cuatrimestre dejan de dictarse y empiezan las del 2°.</small>{errores.cicloC2 && <span role="alert" className="field-error">{errores.cicloC2}</span>}</label>
         </div>
         <h3 className="cfg-h">Feriados y recesos</h3>
         <div className="cfg-grid">
@@ -180,7 +183,7 @@ export function ConfigDemoView({ onNotify }: { onNotify: (m: string) => void }) 
       <div className="table-scroll"><table><thead><tr><th>DOCENTE</th><th>CLASES POR DÍA</th><th>TARDANZA</th><th></th></tr></thead><tbody>
         {draft.personal.filter(p => p.tipo === 'docente').map(p => <tr key={p.id}>
           <td><div className="person-cell"><Avatar initials={p.iniciales} small /><div><strong>{p.nombre}</strong><span>{p.cargo}</span></div></div></td>
-          <td className="clases-resumen">{DIAS.filter(d => (p.clases?.[d.id] ?? []).length).length === 0 ? <span className="muted-cell">Sin clases cargadas</span> : <ul className="clases-lista">{DIAS.filter(d => (p.clases?.[d.id] ?? []).length).map(d => <li key={d.id}><b>{d.corto}</b><span>{p.clases![d.id]!.map(x => <em key={x.entrada}>{x.entrada}–{x.salida} {x.materia}</em>)}</span></li>)}</ul>}</td>
+          <td className="clases-resumen">{DIAS.filter(d => (p.clases?.[d.id] ?? []).length).length === 0 ? <span className="muted-cell">Sin clases cargadas</span> : <ul className="clases-lista">{DIAS.filter(d => (p.clases?.[d.id] ?? []).length).map(d => <li key={d.id}><b>{d.corto}</b><span>{p.clases![d.id]!.map((x, i) => <em key={i}>{x.entrada}–{x.salida} {x.materia}{x.periodo && x.periodo !== 'anual' && <b className="tag-periodo">{PERIODOS.find(q => q.id === x.periodo)!.corto}</b>}</em>)}</span></li>)}</ul>}</td>
           <td><StatusBadge tone="warning">Se aplica</StatusBadge></td>
           <td><button className="mini-btn" aria-label={`Editar las clases de ${p.nombre}`} onClick={() => setEditClases(clon(p))}><Pencil size={13} /> Editar clases</button></td></tr>)}
       </tbody></table></div></section>
@@ -229,13 +232,17 @@ function EditorClases({ persona, onClose, onSave }: { persona: Persona; onClose:
       for (let i = 0; i < l.length; i++) {
         if (!l[i].materia.trim()) { setError(`El ${d.nombre.toLowerCase()}: escribí la materia de cada clase.`); return }
         if (l[i].entrada >= l[i].salida) { setError(`El ${d.nombre.toLowerCase()}: la entrada debe ser anterior a la salida.`); return }
-        if (i > 0 && l[i].entrada < l[i - 1].salida) { setError(`El ${d.nombre.toLowerCase()}: dos clases se superponen.`); return }
+      }
+      // Dos clases sólo chocan si se dictan en el mismo período: una del 1° y otra del 2° cuatrimestre pueden usar el mismo horario.
+      const cruzan = (a?: Periodo, b?: Periodo) => !a || !b || a === 'anual' || b === 'anual' || a === b
+      for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) {
+        if (l[j].entrada < l[i].salida && cruzan(l[i].periodo, l[j].periodo)) { setError(`El ${d.nombre.toLowerCase()}: ${l[i].materia} y ${l[j].materia} se superponen en el mismo período.`); return }
       }
     }
     onSave(cl)
   }
   return <div className="modal-backdrop" onClick={onClose}><div className="modal wide" role="dialog" aria-modal="true" aria-label={`Clases de ${persona.nombre}`} onClick={e => e.stopPropagation()}>
-    <div className="modal-header"><div><h2>Clases de {persona.nombre}</h2><p>El docente ficha cuando llega a dar cada clase. No tiene horario fijo.</p></div><button className="icon-button" aria-label="Cerrar" onClick={onClose}><X size={18} /></button></div>
+    <div className="modal-header"><div><h2>Clases de {persona.nombre}</h2><p>El docente ficha cuando llega a dar cada clase. Indicá si cada materia es anual o de un solo cuatrimestre: fuera de su cuatrimestre no se le exige fichar.</p></div><button className="icon-button" aria-label="Cerrar" onClick={onClose}><X size={18} /></button></div>
     <div className="modal-body"><div className="horario-editor">{DIAS.map(d => <div className="dia-bloque" key={d.id}>
       <div className="dia-cab"><strong>{d.nombre}</strong><button type="button" className="mini-btn" onClick={() => setDia(d.id, [...lista(d.id), { entrada: '08:00', salida: '09:20', materia: '' }])}><Plus size={12} /> Agregar clase</button></div>
       {lista(d.id).length === 0 && <span className="muted-cell">Sin clases</span>}
@@ -243,6 +250,7 @@ function EditorClases({ persona, onClose, onSave }: { persona: Persona; onClose:
         <input type="time" aria-label={`Entrada de la clase ${i + 1} del ${d.nombre}`} value={c.entrada} onChange={e => setDia(d.id, lista(d.id).map((x, j) => j === i ? { ...x, entrada: e.target.value } : x))} /><span>a</span>
         <input type="time" aria-label={`Salida de la clase ${i + 1} del ${d.nombre}`} value={c.salida} onChange={e => setDia(d.id, lista(d.id).map((x, j) => j === i ? { ...x, salida: e.target.value } : x))} />
         <input type="text" aria-label="Materia y curso" placeholder="Materia y curso (ej. Lengua 3° A)" value={c.materia} onChange={e => setDia(d.id, lista(d.id).map((x, j) => j === i ? { ...x, materia: e.target.value } : x))} />
+        <select aria-label={`Duración de la clase ${i + 1} del ${d.nombre}`} value={c.periodo ?? 'anual'} onChange={e => setDia(d.id, lista(d.id).map((x, j) => j === i ? { ...x, periodo: e.target.value as Periodo } : x))}>{PERIODOS.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
         <button type="button" className="mini-btn bad" aria-label="Quitar clase" onClick={() => setDia(d.id, lista(d.id).filter((_, j) => j !== i))}><Trash2 size={12} /></button>
       </div>)}
     </div>)}</div>{error && <p role="alert" className="form-error">{error}</p>}</div>
